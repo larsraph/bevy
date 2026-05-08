@@ -76,13 +76,14 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
         previous_asset: Option<&Self>,
     ) -> Result<Self, PrepareAssetError<Self::SourceAsset>>;
 
-    /// Called whenever the [`RenderAsset::SourceAsset`] has been removed.
+    /// Called whenever the [`RenderAsset`] is dropped.
     ///
     /// You can implement this method if you need to access ECS data (via
     /// `_param`) in order to perform cleanup tasks when the asset is removed.
     ///
     /// The default implementation does nothing.
     fn unload_asset(
+        self,
         _asset_id: AssetId<Self::SourceAsset>,
         _param: &mut SystemParamItem<Self::Param>,
     ) {
@@ -416,6 +417,7 @@ pub fn prepare_assets<A: RenderAsset>(
                 prepare_next_frame
                     .assets
                     .push((id, extracted_asset, previous_asset));
+                continue;
             }
             Err(PrepareAssetError::AsBindGroupError(e)) => {
                 error!(
@@ -424,11 +426,16 @@ pub fn prepare_assets<A: RenderAsset>(
                 );
             }
         }
+
+        if let Some(unload) = previous_asset {
+            unload.unload_asset(removed, &mut param);
+        }
     }
 
     for removed in extracted_assets.removed.drain() {
-        render_assets.remove(removed);
-        A::unload_asset(removed, &mut param);
+        if let Some(unload) = render_assets.remove(removed) {
+            unload.unload_asset(removed, &mut param);
+        }
     }
 
     for (id, extracted_asset) in extracted_assets.extracted.drain(..) {
@@ -459,6 +466,7 @@ pub fn prepare_assets<A: RenderAsset>(
                 prepare_next_frame
                     .assets
                     .push((id, extracted_asset, previous_asset));
+                continue;
             }
             Err(PrepareAssetError::AsBindGroupError(e)) => {
                 error!(
@@ -466,6 +474,10 @@ pub fn prepare_assets<A: RenderAsset>(
                     core::any::type_name::<A>()
                 );
             }
+        }
+
+        if let Some(unload) = previous_asset {
+            unload.unload_asset(removed, &mut param);
         }
     }
 
