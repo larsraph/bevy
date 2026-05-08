@@ -83,7 +83,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     ///
     /// The default implementation does nothing.
     fn unload_asset(
-        _source_asset: AssetId<Self::SourceAsset>,
+        _asset_id: AssetId<Self::SourceAsset>,
         _param: &mut SystemParamItem<Self::Param>,
     ) {
     }
