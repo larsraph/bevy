@@ -62,11 +62,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// Size of the data the asset will upload to the gpu. Specifying a return value
     /// will allow the asset to be throttled via [`RenderAssetBytesPerFrame`].
     #[inline]
-    #[expect(
-        unused_variables,
-        reason = "The parameters here are intentionally unused by the default implementation; however, putting underscores here will result in the underscores being copied by rust-analyzer's tab completion."
-    )]
-    fn byte_len(source_asset: &Self::SourceAsset) -> Option<usize> {
+    fn byte_len(_source_asset: &Self::SourceAsset) -> Option<usize> {
         None
     }
 
@@ -98,8 +94,8 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// have been modified on the CPU side (as it cannot be transferred to GPU again).
     /// The previous GPU asset is also provided, which can be used to check if the modification is valid.
     fn take_gpu_data(
-        _source: &mut Self::SourceAsset,
-        _previous_gpu_asset: Option<&Self>,
+        _source_asset: &mut Self::SourceAsset,
+        _previous_asset: Option<&Self>,
     ) -> Result<Self::SourceAsset, AssetExtractionError> {
         Err(AssetExtractionError::NoExtractionImplementation)
     }
