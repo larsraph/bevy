@@ -26,7 +26,7 @@ use glam::Vec3;
 use wgpu::IndexFormat;
 
 #[cfg(feature = "morph")]
-use crate::mesh::morph::RenderMorphTargetAllocator;
+use crate::mesh::morph::{MorphTargetImageHandle, RenderMorphTargetAllocator};
 
 /// Makes sure that [`Mesh`]es are extracted and prepared for the GPU.
 /// Does *not* add the [`Mesh`] as an asset. Use [`MeshPlugin`] for that.
@@ -77,6 +77,9 @@ pub struct RenderMesh {
     /// Combined with [`RenderMesh::buffer_info`], this specifies the complete
     /// layout of the buffers associated with this mesh.
     pub layout: MeshVertexBufferLayoutRef,
+
+    #[cfg(feature = "morph")]
+    pub morph_target_image_handle: MorphTargetImageHandle,
 }
 
 impl RenderMesh {
@@ -201,10 +204,9 @@ impl RenderAsset for RenderMesh {
         // Place the morph displacements in an image if necessary.
         #[cfg(feature = "morph")]
         if let Some(morph_targets) = mesh.morph_targets() {
-            _render_morph_targets_allocator.allocate(
+            let morph_target_image_handle = _render_morph_targets_allocator.allocate(
                 _render_device,
                 _render_queue,
-                _mesh_id,
                 morph_targets,
                 mesh.count_vertices(),
             );
@@ -219,15 +221,18 @@ impl RenderAsset for RenderMesh {
             buffer_info,
             key_bits,
             layout: mesh_vertex_buffer_layout,
+            #[cfg(feature = "morph")]
+            morph_target_image_handle,
         })
     }
 
     fn unload_asset(
+        self,
         _mesh_id: AssetId<Self::SourceAsset>,
         (_, _, _, _render_morph_targets_allocator): &mut SystemParamItem<Self::Param>,
     ) {
         // Free the morph target images if necessary.
         #[cfg(feature = "morph")]
-        _render_morph_targets_allocator.free(_mesh_id);
+        _render_morph_targets_allocator.free(self.morph_target_image_handle);
     }
 }
