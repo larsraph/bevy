@@ -111,7 +111,7 @@ use bitflags::bitflags;
 use globals::GlobalsPlugin;
 use occlusion_culling::OcclusionCullingPlugin;
 use render_asset::{
-    extract_render_asset_bytes_per_frame, reset_render_asset_bytes_per_frame,
+    extract_render_asset_bytes_per_frame, reset_render_asset_bytes_per_frame, CloneOrTake,
     RenderAssetBytesPerFrame, RenderAssetBytesPerFrameLimiter,
 };
 use settings::RenderResources;

@@ -10,7 +10,7 @@ use bevy_ecs::{
     system::{ScheduleSystem, StaticSystemParam, SystemParam, SystemParamItem, SystemState},
     world::{FromWorld, Mut},
 };
-use bevy_log::{debug, error};
+use bevy_log::{debug, error, warn};
 use bevy_platform::collections::{HashMap, HashSet};
 use core::marker::PhantomData;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -37,6 +37,8 @@ pub enum AssetExtractionError {
     NoExtractionImplementation,
 }
 
+type Data<M: Copy, D: CloneOrTake> = (M, D::Inner);
+
 /// Describes how an asset gets extracted and prepared for rendering.
 ///
 /// In the [`ExtractSchedule`] step the [`RenderAsset::SourceAsset`] is transferred
@@ -53,6 +55,11 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// For convenience use the [`lifetimeless`](bevy_ecs::system::lifetimeless) [`SystemParam`].
     type Param: SystemParam;
 
+    /// Any heavy data that could be moved into the render world if neccecary
+    type RawData: CloneOrTake + Send + Sync + 'static;
+
+    type MetaData: Copy + Send + Sync + 'static;
+
     /// Whether or not to unload the asset after extracting it to the render world.
     #[inline]
     fn asset_usage(_source_asset: &Self::SourceAsset) -> RenderAssetUsages {
@@ -66,43 +73,74 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
         unused_variables,
         reason = "The parameters here are intentionally unused by the default implementation; however, putting underscores here will result in the underscores being copied by rust-analyzer's tab completion."
     )]
-    fn byte_len(source_asset: &Self::SourceAsset) -> Option<usize> {
+    fn byte_len(data: &Data<Self::MetaData, Self::RawData>) -> Option<usize> {
         None
     }
 
-    /// Prepares the [`RenderAsset::SourceAsset`] for the GPU by transforming it into a [`RenderAsset`].
+    fn data(source_asset: &Self::SourceAsset) -> (Self::MetaData, &mut Self::RawData);
+
+    /// Prepares the [`RenderAsset::Data`] and [`RenderAsset::Meta`] for the GPU by transforming it into a [`RenderAsset`].
     ///
     /// ECS data may be accessed via `param`.
     fn prepare_asset(
-        source_asset: Self::SourceAsset,
+        data: Data<Self::MetaData, Self::RawData>,
         asset_id: AssetId<Self::SourceAsset>,
         param: &mut SystemParamItem<Self::Param>,
         previous_asset: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>>;
+    ) -> Result<Self, PrepareAssetError<Data<Self::MetaData, Self::RawData>>>;
 
     /// Called whenever the [`RenderAsset`] is dropped (the [`RenderAsset::SourceAsset`] is reextracted (updated) or removed).
     ///
     /// You can implement this method if you need to access ECS data (via
-    /// `_param`) in order to perform cleanup tasks when the asset is removed.
+    /// `param`) in order to perform cleanup tasks when the asset is removed.
     ///
     /// The default implementation does nothing.
+    #[expect(
+        unused_variables,
+        reason = "The parameters here are intentionally unused by the default implementation; however, putting underscores here will result in the underscores being copied by rust-analyzer's tab completion."
+    )]
     fn unload_asset(
         self,
-        _source_asset: AssetId<Self::SourceAsset>,
-        _param: &mut SystemParamItem<Self::Param>,
+        source_asset: AssetId<Self::SourceAsset>,
+        param: &mut SystemParamItem<Self::Param>,
     ) {
     }
+}
 
-    /// Make a copy of the asset to be moved to the `RenderWorld` / gpu. Heavy internal data (pixels, vertex attributes)
-    /// should be moved into the copy, leaving this asset with only metadata.
-    /// An error may be returned to indicate that the asset has already been extracted, and should not
-    /// have been modified on the CPU side (as it cannot be transferred to GPU again).
-    /// The previous GPU asset is also provided, which can be used to check if the modification is valid.
-    fn take_gpu_data(
-        _source: &mut Self::SourceAsset,
-        _previous_gpu_asset: Option<&Self>,
-    ) -> Result<Self::SourceAsset, AssetExtractionError> {
-        Err(AssetExtractionError::NoExtractionImplementation)
+/// Handles a type that can either be cloned or taken depending on if  we still want to modify it in the MAIN_WORLD.
+///
+/// In order to not support moving data into the render world call `CloneOrTake::clone` from inside `CloneOrTake::take`.
+pub trait CloneOrTake {
+    type Inner: Send + Sync + 'static;
+
+    /// Method to clone the data into the Render World
+    fn clone(&self) -> Option<Self::Inner>;
+
+    /// Method to move the data into the Render World
+    fn take(&mut self) -> Option<Self::Inner>;
+}
+
+impl<T: Clone + Send + Sync + 'static> CloneOrTake for Option<T> {
+    type Inner = T;
+
+    fn clone(&self) -> Option<Self::Inner> {
+        Clone::clone(self)
+    }
+
+    fn take(&mut self) -> Option<Self::Inner> {
+        self.take()
+    }
+}
+
+impl CloneOrTake for () {
+    type Inner = ();
+
+    fn clone(&self) -> Option<Self::Inner> {
+        Some(())
+    }
+
+    fn take(&mut self) -> Option<Self::Inner> {
+        Some(())
     }
 }
 
@@ -177,7 +215,7 @@ pub struct ExtractedAssets<A: RenderAsset> {
     /// The assets extracted this frame.
     ///
     /// These are assets that were either added or modified this frame.
-    pub extracted: Vec<(AssetId<A::SourceAsset>, A::SourceAsset)>,
+    pub extracted: Vec<(AssetId<A::SourceAsset>, Data<A::MetaData, A::RawData>)>,
 
     /// IDs of the assets that were removed this frame.
     ///
@@ -244,7 +282,6 @@ struct CachedExtractRenderAssetSystemState<A: RenderAsset> {
     state: SystemState<(
         MessageReader<'static, 'static, AssetEvent<A::SourceAsset>>,
         ResMut<'static, Assets<A::SourceAsset>>,
-        Option<Res<'static, RenderAssets<A>>>,
     )>,
 }
 
@@ -297,7 +334,7 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
 
     main_world.resource_scope(
         |world, mut cached_state: Mut<CachedExtractRenderAssetSystemState<A>>| {
-            let (mut events, mut assets, maybe_render_assets) = cached_state.state.get_mut(world).unwrap();
+            let (mut events, mut assets) = cached_state.state.get_mut(world).unwrap();
 
             if let Some(reextract_ids) = reextract_ids {
                 needs_extracting.extend(reextract_ids);
@@ -332,25 +369,20 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
             }
 
             for id in needs_extracting.drain() {
-                if let Some(asset) = assets.get(id) {
+                if let Some(asset) = assets.get_mut_untracked(id) {
                     let asset_usage = A::asset_usage(asset);
                     if asset_usage.contains(RenderAssetUsages::RENDER_WORLD) {
-                        if asset_usage == RenderAssetUsages::RENDER_WORLD {
-                            if let Some(asset) = assets.get_mut_untracked(id) {
-                                let previous_asset = maybe_render_assets.as_ref().and_then(|render_assets| render_assets.get(id));
-                                match A::take_gpu_data(asset, previous_asset) {
-                                    Ok(gpu_data_asset) => {
-                                        extracted_assets.extracted.push((id, gpu_data_asset));
-                                        extracted_assets.added.insert(id);
-                                    }
-                                    Err(e) => {
-                                        error!("{} with RenderAssetUsages == RENDER_WORLD cannot be extracted: {e}", core::any::type_name::<A>());
-                                    }
-                                };
-                            }
+                        let (meta, data) = A::data(asset);
+                        let data = if asset_usage == RenderAssetUsages::RENDER_WORLD {
+                            data.take()
                         } else {
-                            extracted_assets.extracted.push((id, asset.clone()));
+                            data.clone()
+                        };
+                        if let Some(data) = data {
+                            extracted_assets.extracted.push((id, (meta, data)));
                             extracted_assets.added.insert(id);
+                        } else {
+                            warn!("`RenderAsset::Data` of asset {} of type {} already extracted.", id, core::any::type_name::<A>());
                         }
                     }
                 }
@@ -365,7 +397,11 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
 /// All assets that should be prepared next frame.
 #[derive(Resource)]
 pub struct PrepareNextFrameAssets<A: RenderAsset> {
-    assets: Vec<(AssetId<A::SourceAsset>, A::SourceAsset, Option<A>)>,
+    assets: Vec<(
+        AssetId<A::SourceAsset>,
+        Data<A::MetaData, A::RawData>,
+        Option<A>,
+    )>,
 }
 
 impl<A: RenderAsset> Default for PrepareNextFrameAssets<A> {
