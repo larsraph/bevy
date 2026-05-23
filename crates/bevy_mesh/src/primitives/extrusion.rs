@@ -4,7 +4,7 @@ use bevy_math::{
 };
 
 use super::{MeshBuilder, Meshable};
-use crate::{Indices, Mesh, PrimitiveTopology, VertexAttributeValues};
+use crate::{Indices, Mesh, PrimitiveTopology, UMesh, VertexAttributeValues};
 
 /// A type representing a segment of the perimeter of an extrudable mesh.
 pub enum PerimeterSegment {
@@ -177,7 +177,7 @@ where
     P: Primitive2d + Meshable,
     P::Output: Extrudable,
 {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         // Create and move the base mesh to the front
         let mut front_face =
             self.base_builder
@@ -186,7 +186,7 @@ where
 
         // Move the uvs of the front face to be between (0., 0.) and (0.5, 0.5)
         if let Some(VertexAttributeValues::Float32x2(uvs)) =
-            front_face.attribute_mut(Mesh::ATTRIBUTE_UV_0)
+            front_face.get_attribute_mut(Mesh::ATTRIBUTE_UV_0)
         {
             for uv in uvs {
                 *uv = uv.map(|coord| coord * 0.5);
@@ -200,7 +200,7 @@ where
 
             // Move the uvs of the back face to be between (0.5, 0.) and (1., 0.5)
             if let Some(VertexAttributeValues::Float32x2(uvs)) =
-                back_face.attribute_mut(Mesh::ATTRIBUTE_UV_0)
+                back_face.get_attribute_mut(Mesh::ATTRIBUTE_UV_0)
             {
                 for uv in uvs {
                     *uv = [uv[0] + 0.5, uv[1]];
@@ -232,13 +232,13 @@ where
 
         // An extrusion of depth 0 does not need a mantel
         if self.half_depth == 0. {
-            front_face.merge(&back_face).unwrap();
+            front_face.merge(back_face.as_ref()).unwrap();
             return front_face;
         }
 
         let mantel = {
             let Some(VertexAttributeValues::Float32x3(cap_verts)) =
-                front_face.attribute(Mesh::ATTRIBUTE_POSITION)
+                front_face.get_attribute(Mesh::ATTRIBUTE_POSITION)
             else {
                 panic!("The base mesh did not have vertex positions");
             };
@@ -417,20 +417,20 @@ where
                 }
             }
 
-            Mesh::new(PrimitiveTopology::TriangleList, front_face.asset_usage)
+            Mesh::new(PrimitiveTopology::TriangleList, front_face.asset_usage())
                 .with_inserted_indices(Indices::U32(indices))
                 .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
                 .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
                 .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
         };
 
-        front_face.merge(&back_face).unwrap();
-        front_face.merge(&mantel).unwrap();
+        front_face.merge(back_face.as_ref()).unwrap();
+        front_face.merge(mantel.as_ref()).unwrap();
         front_face
     }
 }
 
-impl<P> From<Extrusion<P>> for Mesh
+impl<P> From<Extrusion<P>> for UMesh
 where
     P: Primitive2d + Meshable,
     P::Output: Extrudable,

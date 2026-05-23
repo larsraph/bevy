@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{primitives::Triangle3d, Vec3};
 use bevy_reflect::prelude::*;
@@ -11,7 +11,7 @@ pub struct Triangle3dMeshBuilder {
 }
 
 impl MeshBuilder for Triangle3dMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         let positions: Vec<_> = self.triangle.vertices.into();
         let uvs: Vec<_> = uv_coords(&self.triangle).into();
 
@@ -35,7 +35,7 @@ impl MeshBuilder for Triangle3dMeshBuilder {
 impl Meshable for Triangle3d {
     type Output = Triangle3dMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         Triangle3dMeshBuilder { triangle: *self }
     }
 }
@@ -94,7 +94,7 @@ pub(crate) fn uv_coords(triangle: &Triangle3d) -> [[f32; 2]; 3] {
     }
 }
 
-impl From<Triangle3d> for Mesh {
+impl From<Triangle3d> for UMesh {
     fn from(triangle: Triangle3d) -> Self {
         triangle.mesh().build()
     }

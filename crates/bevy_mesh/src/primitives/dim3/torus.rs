@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{ops, primitives::Torus, Vec3};
 use bevy_reflect::prelude::*;
@@ -77,7 +77,7 @@ impl TorusMeshBuilder {
 }
 
 impl MeshBuilder for TorusMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         // code adapted from http://apparat-engine.blogspot.com/2013/04/procedural-meshes-torus.html
 
         let n_vertices = (self.major_resolution + 1) * (self.minor_resolution + 1);
@@ -161,7 +161,7 @@ impl MeshBuilder for TorusMeshBuilder {
 impl Meshable for Torus {
     type Output = TorusMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         TorusMeshBuilder {
             torus: *self,
             ..Default::default()
@@ -169,7 +169,7 @@ impl Meshable for Torus {
     }
 }
 
-impl From<Torus> for Mesh {
+impl From<Torus> for UMesh {
     fn from(torus: Torus) -> Self {
         torus.mesh().build()
     }

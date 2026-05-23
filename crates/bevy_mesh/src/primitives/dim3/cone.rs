@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{ops, primitives::Cone, Vec3};
 use bevy_reflect::prelude::*;
@@ -69,7 +69,7 @@ impl ConeMeshBuilder {
 }
 
 impl MeshBuilder for ConeMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         let half_height = self.cone.height / 2.0;
 
         // `resolution` vertices for the base, `resolution` vertices for the bottom of the lateral surface,
@@ -182,7 +182,7 @@ impl Meshable for Cone {
     }
 }
 
-impl From<Cone> for Mesh {
+impl From<Cone> for UMesh {
     fn from(cone: Cone) -> Self {
         cone.mesh().build()
     }
@@ -211,9 +211,9 @@ mod tests {
             radius: 0.5,
             height: 1.0,
         }
-        .mesh()
+        .mesh_builder()
         .resolution(4)
-        .build();
+        .mesh();
 
         let Some(VertexAttributeValues::Float32x3(mut positions)) =
             mesh.remove_attribute(Mesh::ATTRIBUTE_POSITION)

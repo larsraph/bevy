@@ -41,11 +41,11 @@ fn compute_normals(c: &mut Criterion) {
             let mut total = Duration::default();
             for _ in 0..iters {
                 let mut mesh = new_mesh();
-                black_box(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+                black_box(mesh.get_attribute(Mesh::ATTRIBUTE_NORMAL));
                 let start = Instant::now();
                 mesh.compute_smooth_normals();
                 let end = Instant::now();
-                black_box(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+                black_box(mesh.get_attribute(Mesh::ATTRIBUTE_NORMAL));
                 total += end.duration_since(start);
             }
             total
@@ -57,11 +57,11 @@ fn compute_normals(c: &mut Criterion) {
             let mut total = Duration::default();
             for _ in 0..iters {
                 let mut mesh = new_mesh();
-                black_box(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+                black_box(mesh.get_attribute(Mesh::ATTRIBUTE_NORMAL));
                 let start = Instant::now();
                 mesh.compute_smooth_normals();
                 let end = Instant::now();
-                black_box(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+                black_box(mesh.get_attribute(Mesh::ATTRIBUTE_NORMAL));
                 total += end.duration_since(start);
             }
             total
@@ -73,11 +73,11 @@ fn compute_normals(c: &mut Criterion) {
             let mut total = Duration::default();
             for _ in 0..iters {
                 let mut mesh = new_mesh();
-                black_box(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+                black_box(mesh.get_attribute(Mesh::ATTRIBUTE_NORMAL));
                 let start = Instant::now();
                 mesh.compute_area_weighted_normals();
                 let end = Instant::now();
-                black_box(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+                black_box(mesh.get_attribute(Mesh::ATTRIBUTE_NORMAL));
                 total += end.duration_since(start);
             }
             total
@@ -91,11 +91,11 @@ fn compute_normals(c: &mut Criterion) {
             let mut total = Duration::default();
             for _ in 0..iters {
                 let mut mesh = new_mesh();
-                black_box(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+                black_box(mesh.get_attribute(Mesh::ATTRIBUTE_NORMAL));
                 let start = Instant::now();
                 mesh.compute_flat_normals();
                 let end = Instant::now();
-                black_box(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+                black_box(mesh.get_attribute(Mesh::ATTRIBUTE_NORMAL));
                 total += end.duration_since(start);
             }
             total

@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::primitives::Segment3d;
 use bevy_reflect::prelude::*;
@@ -11,7 +11,7 @@ pub struct Segment3dMeshBuilder {
 }
 
 impl MeshBuilder for Segment3dMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         let positions: Vec<_> = self.segment.vertices.into();
         let indices = Indices::U32(vec![0, 1]);
 
@@ -24,12 +24,12 @@ impl MeshBuilder for Segment3dMeshBuilder {
 impl Meshable for Segment3d {
     type Output = Segment3dMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         Segment3dMeshBuilder { segment: *self }
     }
 }
 
-impl From<Segment3d> for Mesh {
+impl From<Segment3d> for UMesh {
     fn from(segment: Segment3d) -> Self {
         segment.mesh().build()
     }
@@ -45,7 +45,10 @@ mod tests {
     fn segment3d_mesh_builder() {
         let segment = Segment3d::new(Vec3::ZERO, Vec3::X);
         let mesh = segment.mesh().build();
-        assert_eq!(mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().len(), 2);
+        assert_eq!(
+            mesh.get_attribute(Mesh::ATTRIBUTE_POSITION).unwrap().len(),
+            2
+        );
         assert_eq!(mesh.indices().unwrap().len(), 2);
     }
 }

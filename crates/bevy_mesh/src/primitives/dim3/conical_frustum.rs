@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{ops, primitives::ConicalFrustum, Vec3};
 use bevy_reflect::prelude::*;
@@ -61,7 +61,7 @@ impl ConicalFrustumMeshBuilder {
 }
 
 impl MeshBuilder for ConicalFrustumMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         debug_assert!(self.resolution > 2);
         debug_assert!(self.segments > 0);
 
@@ -177,7 +177,7 @@ impl Meshable for ConicalFrustum {
     }
 }
 
-impl From<ConicalFrustum> for Mesh {
+impl From<ConicalFrustum> for UMesh {
     fn from(frustum: ConicalFrustum) -> Self {
         frustum.mesh().build()
     }

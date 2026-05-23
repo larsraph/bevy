@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{primitives::Cuboid, Vec3};
 use bevy_reflect::prelude::*;
@@ -20,7 +20,7 @@ impl Default for CuboidMeshBuilder {
 }
 
 impl MeshBuilder for CuboidMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         let min = -self.half_size;
         let max = self.half_size;
 
@@ -92,7 +92,7 @@ impl Meshable for Cuboid {
     }
 }
 
-impl From<Cuboid> for Mesh {
+impl From<Cuboid> for UMesh {
     fn from(cuboid: Cuboid) -> Self {
         cuboid.mesh().build()
     }

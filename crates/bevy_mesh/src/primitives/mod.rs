@@ -28,7 +28,7 @@ pub use dim3::*;
 mod extrusion;
 pub use extrusion::*;
 
-use super::Mesh;
+use super::UMesh;
 
 /// A trait for shapes that can be turned into a [`Mesh`].
 pub trait Meshable {
@@ -42,10 +42,10 @@ pub trait Meshable {
 /// A trait used to build [`Mesh`]es from a configuration
 pub trait MeshBuilder {
     /// Builds a [`Mesh`] based on the configuration in `self`.
-    fn build(&self) -> Mesh;
+    fn build(&self) -> UMesh;
 }
 
-impl<T: MeshBuilder> From<T> for Mesh {
+impl<T: MeshBuilder> From<T> for UMesh {
     fn from(builder: T) -> Self {
         builder.build()
     }

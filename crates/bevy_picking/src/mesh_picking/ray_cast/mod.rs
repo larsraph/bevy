@@ -282,6 +282,11 @@ impl<'w, 's> MeshRayCast<'w, 's> {
                     return;
                 };
 
+                // Is the mesh not taken by the render world?
+                let Some(umesh) = mesh.untaken_ref() else {
+                    return;
+                };
+
                 // Backfaces of 2d meshes are never culled, unlike 3d meshes.
                 let backfaces = match (has_backfaces, mesh2d.is_some()) {
                     (false, false) => Backfaces::Cull,
@@ -291,7 +296,7 @@ impl<'w, 's> MeshRayCast<'w, 's> {
                 // Perform the actual ray cast.
                 let _ray_cast_guard = ray_cast_guard.enter();
                 let transform = transform.affine();
-                let intersection = ray_intersection_over_mesh(mesh, &transform, ray, backfaces);
+                let intersection = ray_intersection_over_mesh(umesh, &transform, ray, backfaces);
 
                 if let Some(intersection) = intersection {
                     let distance = FloatOrd(intersection.distance);

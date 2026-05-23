@@ -334,7 +334,7 @@ pub trait ErasedGltfExtensionHandler: Send + Sync + 'static {
         custom_vertex_attributes: &'a HashMap<Box<str>, MeshVertexAttribute>,
         gltf_mesh_on_skinned_nodes: bool,
         gltf_mesh_on_non_skinned_nodes: bool,
-        user_mesh: &'a mut Option<Mesh>,
+        user_mesh: &'a mut Option<UMesh>,
     ) -> BoxedFuture<'a, ()>;
 
     /// Called when an individual glTF Mesh is processed

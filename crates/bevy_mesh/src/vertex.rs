@@ -174,6 +174,24 @@ pub(crate) struct MeshAttributeData {
     pub(crate) values: VertexAttributeValues,
 }
 
+impl MeshAttributeData {
+    pub fn values(&self) -> &VertexAttributeValues {
+        &self.values
+    }
+
+    pub fn values_mut(&mut self) -> &mut VertexAttributeValues {
+        &mut self.values
+    }
+
+    pub fn into_values(self) -> VertexAttributeValues {
+        self.values
+    }
+
+    pub fn tuple(&self) -> (&MeshVertexAttribute, &VertexAttributeValues) {
+        (&self.attribute, &self.values)
+    }
+}
+
 #[cfg(feature = "serialize")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SerializedMeshAttributeData {

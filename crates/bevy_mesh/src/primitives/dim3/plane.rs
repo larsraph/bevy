@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{primitives::Plane3d, Dir3, Quat, Vec2, Vec3};
 use bevy_reflect::prelude::*;
@@ -139,7 +139,7 @@ impl PlaneMeshBuilder {
 }
 
 impl MeshBuilder for PlaneMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         let z_vertex_count = self.subdivisions_z + 2;
         let x_vertex_count = self.subdivisions_x + 2;
         let num_vertices = (z_vertex_count * x_vertex_count) as usize;
@@ -199,7 +199,7 @@ impl Meshable for Plane3d {
     }
 }
 
-impl From<Plane3d> for Mesh {
+impl From<Plane3d> for UMesh {
     fn from(plane: Plane3d) -> Self {
         plane.mesh().build()
     }

@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{ops, primitives::Capsule3d, Vec2, Vec3};
 use bevy_reflect::prelude::*;
@@ -94,7 +94,7 @@ impl Capsule3dMeshBuilder {
 }
 
 impl MeshBuilder for Capsule3dMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         // code adapted from https://behreajj.medium.com/making-a-capsule-mesh-via-script-in-five-3d-environments-c2214abf02db
         let Capsule3dMeshBuilder {
             capsule,
@@ -429,7 +429,7 @@ impl Meshable for Capsule3d {
     }
 }
 
-impl From<Capsule3d> for Mesh {
+impl From<Capsule3d> for UMesh {
     fn from(capsule: Capsule3d) -> Self {
         capsule.mesh().build()
     }

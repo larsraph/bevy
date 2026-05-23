@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{ops, primitives::Cylinder};
 use bevy_reflect::prelude::*;
@@ -94,7 +94,7 @@ impl CylinderMeshBuilder {
 }
 
 impl MeshBuilder for CylinderMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn build(&self) -> UMesh {
         let resolution = self.resolution;
         let segments = self.segments;
 
@@ -207,7 +207,7 @@ impl MeshBuilder for CylinderMeshBuilder {
 impl Meshable for Cylinder {
     type Output = CylinderMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         CylinderMeshBuilder {
             cylinder: *self,
             ..Default::default()
@@ -215,7 +215,7 @@ impl Meshable for Cylinder {
     }
 }
 
-impl From<Cylinder> for Mesh {
+impl From<Cylinder> for UMesh {
     fn from(cylinder: Cylinder) -> Self {
         cylinder.mesh().build()
     }
