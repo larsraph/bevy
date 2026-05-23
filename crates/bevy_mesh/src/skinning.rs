@@ -1,4 +1,4 @@
-use crate::{Mesh, MeshVertexAttribute, VertexAttributeValues, VertexFormat};
+use crate::{Mesh, MeshVertexAttribute, UMeshRef, VertexAttributeValues, VertexFormat};
 use bevy_asset::{AsAssetId, Asset, AssetId, Handle};
 use bevy_ecs::{
     component::Component, entity::Entity, prelude::ReflectComponent, system::Query,
@@ -117,9 +117,9 @@ impl SkinnedMeshBounds {
     ///
     /// The mesh is expected to have position, joint index and joint weight
     /// attributes. If any are missing then a [`MeshAttributeError`] is returned.
-    pub fn from_mesh(mesh: &Mesh) -> Result<SkinnedMeshBounds, SkinnedMeshBoundsError> {
-        let vertex_positions = expect_attribute_float32x3(mesh, Mesh::ATTRIBUTE_POSITION)?;
-        let vertex_influences = InfluenceIterator::new(mesh)?;
+    pub fn from_mesh(mesh: UMeshRef) -> Result<SkinnedMeshBounds, SkinnedMeshBoundsError> {
+        let vertex_positions = expect_attribute_float32x3(&mesh, Mesh::ATTRIBUTE_POSITION)?;
+        let vertex_influences = InfluenceIterator::new(&mesh)?;
 
         // Find the maximum joint index.
         let Some(max_joint_index) = vertex_influences
@@ -190,7 +190,7 @@ pub enum EntityAabbFromSkinnedMeshBoundsError {
 /// encloses the skinned vertices of the mesh.
 pub fn entity_aabb_from_skinned_mesh_bounds(
     joint_entities: &Query<&GlobalTransform>,
-    mesh: &Mesh,
+    mesh: UMeshRef<'_>,
     skinned_mesh: &SkinnedMesh,
     skinned_mesh_inverse_bindposes: &SkinnedMeshInverseBindposes,
     world_from_entity: Option<&GlobalTransform>,
@@ -355,7 +355,7 @@ pub struct InfluenceIterator<'a> {
 }
 
 impl<'a> InfluenceIterator<'a> {
-    pub fn new(mesh: &'a Mesh) -> Result<Self, MeshAttributeError> {
+    pub fn new(mesh: &'a UMeshRef) -> Result<Self, MeshAttributeError> {
         let joint_indices = expect_attribute_uint16x4(mesh, Mesh::ATTRIBUTE_JOINT_INDEX)?;
         let joint_weights = expect_attribute_float32x4(mesh, Mesh::ATTRIBUTE_JOINT_WEIGHT)?;
 
@@ -427,10 +427,10 @@ pub enum MeshAttributeError {
 macro_rules! impl_expect_attribute {
     ($name:ident, $value_type:ident, $output_type:ty) => {
         fn $name<'a>(
-            mesh: &'a Mesh,
+            mesh: &'a UMeshRef,
             attribute: MeshVertexAttribute,
         ) -> Result<&'a Vec<$output_type>, MeshAttributeError> {
-            match mesh.attribute(attribute) {
+            match mesh.get_attribute(attribute) {
                 Some(VertexAttributeValues::$value_type(v)) => Ok(v),
                 Some(v) => {
                     return Err(MeshAttributeError::UnexpectedFormat(
@@ -535,7 +535,7 @@ mod tests {
         );
 
         assert_eq!(
-            InfluenceIterator::new(&mesh).err(),
+            InfluenceIterator::new(&mesh.as_ref()).err(),
             Some(MeshAttributeError::MissingAttribute(
                 Mesh::ATTRIBUTE_JOINT_INDEX.name
             ))
@@ -555,7 +555,7 @@ mod tests {
         );
 
         assert_eq!(
-            InfluenceIterator::new(&mesh).err(),
+            InfluenceIterator::new(&mesh.as_ref()).err(),
             Some(MeshAttributeError::MissingAttribute(
                 Mesh::ATTRIBUTE_JOINT_WEIGHT.name
             ))
@@ -643,7 +643,9 @@ mod tests {
         ];
 
         assert_eq!(
-            InfluenceIterator::new(&mesh).unwrap().collect::<Vec<_>>(),
+            InfluenceIterator::new(&mesh.as_ref())
+                .unwrap()
+                .collect::<Vec<_>>(),
             expected
         );
     }

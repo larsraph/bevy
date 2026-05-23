@@ -5,10 +5,7 @@ pub mod morph;
 #[cfg(feature = "morph")]
 use crate::GpuResourceAppExt;
 use crate::{
-    render_asset::{AssetExtractionError, PrepareAssetError, RenderAsset, RenderAssetPlugin},
-    renderer::{RenderDevice, RenderQueue},
-    texture::GpuImage,
-    RenderApp,
+    RenderApp, render_asset::{ExtractResult, PrepareAssetError, RenderAsset, RenderAssetPlugin}, renderer::{RenderDevice, RenderQueue}, texture::GpuImage
 };
 use allocator::MeshAllocatorPlugin;
 use bevy_app::{App, Plugin};
@@ -123,6 +120,11 @@ pub enum RenderMeshBufferInfo {
 impl RenderAsset for RenderMesh {
     type SourceAsset = Mesh;
 
+    #[inline]
+    fn asset_usage(mesh: &Self::SourceAsset) -> RenderAssetUsages {
+        mesh.metadata().asset_usage
+    }
+
     #[cfg(not(feature = "morph"))]
     type Param = (
         SRes<RenderDevice>,
@@ -138,35 +140,23 @@ impl RenderAsset for RenderMesh {
         SResMut<RenderMorphTargetAllocator>,
     );
 
-    #[inline]
-    fn asset_usage(mesh: &Self::SourceAsset) -> RenderAssetUsages {
-        mesh.asset_usage
+    type MaybeTaken = Option<MeshData>;
+
+    fn maybe_taken(source_asset: &mut Self::SourceAsset) -> &mut Self::MaybeTaken {
+        &mut source_asset.data
     }
 
-    fn take_gpu_data(
-        source: &mut Self::SourceAsset,
-        _previous_gpu_asset: Option<&Self>,
-    ) -> Result<Self::SourceAsset, AssetExtractionError> {
-        source
-            .take_gpu_data()
-            .map_err(|_| AssetExtractionError::AlreadyExtracted)
+    type Extracted = UMesh;
+
+    fn extract(source_asset: &mut Self::SourceAsset, data: MeshData) -> ExtractResult {
+        let mut mesh = UntakenMesh::new(&mut source_asset.metadata, &data);
+        mesh.update_final_aabb();
+        drop(mesh);
+        UMesh::new(source_asset.metadata.clone(), data)
     }
 
-    fn byte_len(mesh: &Self::SourceAsset) -> Option<usize> {
-        let mut vertex_size = 0;
-        for attribute_data in mesh.attributes() {
-            let vertex_format = attribute_data.0.format;
-            vertex_size += vertex_format.size() as usize;
-        }
-
-        let vertex_count = mesh.count_vertices();
-        let index_bytes = mesh.get_index_buffer_bytes().map(<[_]>::len).unwrap_or(0);
-        Some(vertex_size * vertex_count + index_bytes)
-    }
-
-    /// Converts the extracted mesh into a [`RenderMesh`].
     fn prepare_asset(
-        mesh: Self::SourceAsset,
+        mesh: Self::Extracted,
         _mesh_id: AssetId<Self::SourceAsset>,
         (
             _render_device,
@@ -175,7 +165,7 @@ impl RenderAsset for RenderMesh {
             _render_morph_targets_allocator,
         ): &mut SystemParamItem<Self::Param>,
         _: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
+    ) -> Result<Self, PrepareAssetError<Self::Extracted>> {
         let (buffer_info, index_format) = match mesh.indices() {
             Some(indices) => (
                 RenderMeshBufferInfo::Indexed {

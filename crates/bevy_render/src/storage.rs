@@ -1,5 +1,5 @@
 use crate::{
-    render_asset::{AssetExtractionError, PrepareAssetError, RenderAsset, RenderAssetPlugin},
+    render_asset::{ExtractResult, PrepareAssetError, RenderAsset, RenderAssetPlugin},
     render_resource::{Buffer, BufferUsages},
     renderer::{RenderDevice, RenderQueue},
 };
@@ -28,10 +28,10 @@ impl Plugin for StoragePlugin {
 #[reflect(opaque)]
 #[reflect(Default, Debug, Clone)]
 pub struct ShaderBuffer {
-    /// Optional data used to initialize the buffer.
+    /// When [`None`] the buffer has been logically extracted from the MAIN_WORLD.
     pub data: Option<Vec<u8>>,
     /// The buffer description used to create the buffer.
-    pub buffer_description: wgpu::BufferDescriptor<'static>,
+    pub buffer_descriptor: wgpu::BufferDescriptor<'static>,
     /// The asset usage of the storage buffer.
     pub asset_usage: RenderAssetUsages,
     /// Whether this buffer should be copied on the GPU when resized.
@@ -41,8 +41,8 @@ pub struct ShaderBuffer {
 impl Default for ShaderBuffer {
     fn default() -> Self {
         Self {
-            data: None,
-            buffer_description: wgpu::BufferDescriptor {
+            data: Some(Vec::new()),
+            buffer_descriptor: wgpu::BufferDescriptor {
                 label: None,
                 size: 0,
                 usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
@@ -71,8 +71,8 @@ impl ShaderBuffer {
             data: None,
             ..default()
         };
-        storage.buffer_description.size = size as u64;
-        storage.buffer_description.mapped_at_creation = false;
+        storage.buffer_descriptor.size = size as u64;
+        storage.buffer_descriptor.mapped_at_creation = false;
         storage.asset_usage = asset_usage;
         storage
     }
@@ -93,7 +93,7 @@ impl ShaderBuffer {
     /// If CPU data is present, it will be truncated or zero-extended.
     /// Does not preserve GPU data when the descriptor changes.
     pub fn resize(&mut self, size: u64) {
-        self.buffer_description.size = size;
+        self.buffer_descriptor.size = size;
         if let Some(ref mut data) = self.data {
             data.resize(size as usize, 0);
         }
@@ -104,7 +104,7 @@ impl ShaderBuffer {
     /// If CPU data is present, it will be truncated or zero-extended.
     /// If no CPU data is present, sets `copy_on_resize` to preserve GPU data.
     pub fn resize_in_place(&mut self, size: u64) {
-        self.buffer_description.size = size;
+        self.buffer_descriptor.size = size;
         if let Some(ref mut data) = self.data {
             data.resize(size as usize, 0);
         } else {
@@ -140,73 +140,72 @@ impl RenderAsset for GpuShaderBuffer {
         source_asset.asset_usage
     }
 
-    fn take_gpu_data(
-        source: &mut Self::SourceAsset,
-        previous_gpu_asset: Option<&Self>,
-    ) -> Result<Self::SourceAsset, AssetExtractionError> {
-        let data = source.data.take();
+    type MaybeTaken = Option<Vec<u8>>;
 
-        let valid_upload = data.is_some() || previous_gpu_asset.is_none_or(|prev| !prev.had_data);
+    fn maybe_taken(source_asset: &mut Self::SourceAsset) -> &mut Self::MaybeTaken {
+        &mut source_asset.data
+    }
 
-        valid_upload
-            .then(|| Self::SourceAsset {
-                data,
-                ..source.clone()
-            })
-            .ok_or(AssetExtractionError::AlreadyExtracted)
+    type Extracted = (Vec<u8>, wgpu::BufferDescriptor<'static>);
+
+    fn extract(
+        source_asset: &mut Self::SourceAsset,
+        data: <Self::MaybeTaken as crate::render_asset::CloneOrTake>::Inner,
+    ) -> ExtractResult {
+        ExtractResult(data, source_asset.buffer_descriptor.clone())
     }
 
     fn prepare_asset(
-        source_asset: Self::SourceAsset,
+        (data, buffer_descriptor): Self::Extracted,
         _: AssetId<Self::SourceAsset>,
         (render_device, render_queue): &mut SystemParamItem<Self::Param>,
-        previous_asset: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
-        let had_data = source_asset.data.is_some();
+        previous_asset: Option<Self>,
+    ) -> Result<Self, PrepareAssetError<Self::Extracted>> {
+        let had_data = extracted.data.is_some();
 
         // when cpu data is provided, the actual buffer size is determined by the vec length,
         // not the descriptor size
-        let actual_size = source_asset
+        let actual_size = extracted
             .data
             .as_ref()
             .map(|d| d.len() as u64)
-            .unwrap_or(source_asset.buffer_description.size);
+            .unwrap_or(extracted.buffer_descriptor.size);
 
         let buffer = if let Some(prev) = previous_asset
             && prev.buffer_descriptor.size == actual_size
-            && prev.buffer_descriptor.usage == source_asset.buffer_description.usage
-            && prev.buffer_descriptor.label == source_asset.buffer_description.label
+            && prev.buffer_descriptor.usage == extracted.buffer_descriptor.usage
+            && prev.buffer_descriptor.label == extracted.buffer_descriptor.label
             && (!had_data
-                || source_asset
-                    .buffer_description
+                || extracted
+                    .buffer_descriptor
                     .usage
                     .contains(BufferUsages::COPY_DST))
         {
-            if let Some(ref data) = source_asset.data {
+            if let Some(ref data) = extracted.data {
                 render_queue.write_buffer(&prev.buffer, 0, data);
             }
             prev.buffer.clone()
-        } else if let Some(ref data) = source_asset.data {
+        } else if let Some(ref data) = extracted.data {
             render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: source_asset.buffer_description.label,
+                label: extracted.buffer_descriptor.label,
                 contents: data,
-                usage: source_asset.buffer_description.usage,
+                usage: extracted.buffer_descriptor.usage,
             })
         } else {
-            let new_buffer = render_device.create_buffer(&source_asset.buffer_description);
-            if source_asset.copy_on_resize
+            let new_buffer = render_device.create_buffer(&extracted.buffer_descriptor);
+            if extracted.copy_on_resize
                 && let Some(previous) = previous_asset
                 && previous
                     .buffer_descriptor
                     .usage
                     .contains(BufferUsages::COPY_SRC)
-                && source_asset
-                    .buffer_description
+                && extracted
+                    .buffer_descriptor
                     .usage
                     .contains(BufferUsages::COPY_DST)
             {
-                let copy_size = source_asset
-                    .buffer_description
+                let copy_size = extracted
+                    .buffer_descriptor
                     .size
                     .min(previous.buffer_descriptor.size);
                 let mut encoder =
@@ -223,7 +222,7 @@ impl RenderAsset for GpuShaderBuffer {
             buffer,
             buffer_descriptor: wgpu::BufferDescriptor {
                 size: actual_size,
-                ..source_asset.buffer_description
+                ..extracted.buffer_descriptor
             },
             had_data,
         })

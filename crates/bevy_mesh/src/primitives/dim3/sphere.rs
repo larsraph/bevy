@@ -1,4 +1,4 @@
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{ops, primitives::Sphere};
 use bevy_reflect::prelude::*;
@@ -81,7 +81,7 @@ impl SphereMeshBuilder {
     /// and an [`IcosphereError`] is returned.
     ///
     /// A good default is `5` subdivisions.
-    pub fn ico(&self, subdivisions: u32) -> Result<Mesh, IcosphereError> {
+    pub fn ico(&self, subdivisions: u32) -> Result<UMesh, IcosphereError> {
         if subdivisions >= 80 {
             /*
             Number of triangles:
@@ -169,7 +169,7 @@ impl SphereMeshBuilder {
         clippy::explicit_counter_loop,
         reason = "Clippy suggestion was much less clear."
     )]
-    pub fn uv(&self, sectors: u32, stacks: u32) -> Mesh {
+    pub fn uv(&self, sectors: u32, stacks: u32) -> UMesh {
         // Largely inspired from http://www.songho.ca/opengl/gl_sphere.html
 
         let sectors_f32 = sectors as f32;
@@ -236,13 +236,13 @@ impl SphereMeshBuilder {
 }
 
 impl MeshBuilder for SphereMeshBuilder {
-    /// Builds a [`Mesh`] according to the configuration in `self`.
+    /// Builds a [`UMesh`] according to the configuration in `self`.
     ///
     /// # Panics
     ///
     /// Panics if the sphere is a [`SphereKind::Ico`] with a subdivision count
     /// that is greater than or equal to `80` because there will be too many vertices.
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         match self.kind {
             SphereKind::Ico { subdivisions } => self.ico(subdivisions).unwrap(),
             SphereKind::Uv { sectors, stacks } => self.uv(sectors, stacks),
@@ -251,18 +251,12 @@ impl MeshBuilder for SphereMeshBuilder {
 }
 
 impl Meshable for Sphere {
-    type Output = SphereMeshBuilder;
+    type Builder = SphereMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         SphereMeshBuilder {
             sphere: *self,
             ..Default::default()
         }
-    }
-}
-
-impl From<Sphere> for Mesh {
-    fn from(sphere: Sphere) -> Self {
-        sphere.mesh().build()
     }
 }

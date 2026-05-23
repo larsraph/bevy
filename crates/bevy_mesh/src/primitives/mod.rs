@@ -28,25 +28,33 @@ pub use dim3::*;
 mod extrusion;
 pub use extrusion::*;
 
-use super::Mesh;
+use super::UMesh;
 
-/// A trait for shapes that can be turned into a [`Mesh`].
+/// A trait for shapes that can be turned into a [`Mesh`] via a [`MeshBuilder`].
 pub trait Meshable {
-    /// The output of [`Self::mesh`]. This will be a [`MeshBuilder`] used for creating a [`Mesh`].
-    type Output: MeshBuilder;
+    /// The output of [`Self::mesh_builder`].
+    type Builder: MeshBuilder;
 
-    /// Creates a [`Mesh`] for a shape.
-    fn mesh(&self) -> Self::Output;
+    /// Creates a [`MeshBuilder`] for a shape.
+    fn mesh_builder(&self) -> Self::Builder;
 }
 
-/// A trait used to build [`Mesh`]es from a configuration
+/// A trait used to build [`Mesh`]es.
 pub trait MeshBuilder {
-    /// Builds a [`Mesh`] based on the configuration in `self`.
-    fn build(&self) -> Mesh;
+    /// Builds a [`Mesh`] based on `&self`.
+    fn mesh(&self) -> UMesh;
 }
 
-impl<T: MeshBuilder> From<T> for Mesh {
-    fn from(builder: T) -> Self {
-        builder.build()
+// All Meshable types being MeshBuilder makes From<T: Meshable> semantics easier to impliment
+// without running into trait overlap with From<T: MeshBuilder>.
+impl<M: Meshable<Builder = B>, B: MeshBuilder> MeshBuilder for M {
+    fn mesh(&self) -> UMesh {
+        self.mesh_builder().mesh()
+    }
+}
+
+impl<B: MeshBuilder> From<B> for UMesh {
+    fn from(builder: B) -> Self {
+        builder.mesh()
     }
 }

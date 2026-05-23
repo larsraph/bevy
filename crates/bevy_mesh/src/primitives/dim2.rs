@@ -1,6 +1,7 @@
 use core::f32::consts::FRAC_PI_2;
 use core::mem;
 
+use crate::UMesh;
 use crate::{primitives::dim3::triangle3d, Indices, Mesh, PerimeterSegment, VertexAttributeValues};
 use bevy_asset::RenderAssetUsages;
 
@@ -59,11 +60,11 @@ impl CircleMeshBuilder {
 }
 
 impl MeshBuilder for CircleMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         Ellipse::new(self.circle.radius, self.circle.radius)
-            .mesh()
+            .mesh_builder()
             .resolution(self.resolution)
-            .build()
+            .mesh()
     }
 }
 
@@ -78,19 +79,13 @@ impl Extrudable for CircleMeshBuilder {
 }
 
 impl Meshable for Circle {
-    type Output = CircleMeshBuilder;
+    type Builder = CircleMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         CircleMeshBuilder {
             circle: *self,
             ..Default::default()
         }
-    }
-}
-
-impl From<Circle> for Mesh {
-    fn from(circle: Circle) -> Self {
-        circle.mesh().build()
     }
 }
 
@@ -175,7 +170,7 @@ impl CircularSectorMeshBuilder {
 }
 
 impl MeshBuilder for CircularSectorMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let resolution = self.resolution as usize;
         let mut indices = Vec::with_capacity((resolution - 1) * 3);
         let mut positions = Vec::with_capacity(resolution + 1);
@@ -240,22 +235,13 @@ impl Extrudable for CircularSectorMeshBuilder {
 }
 
 impl Meshable for CircularSector {
-    type Output = CircularSectorMeshBuilder;
+    type Builder = CircularSectorMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         CircularSectorMeshBuilder {
             sector: *self,
             ..Default::default()
         }
-    }
-}
-
-impl From<CircularSector> for Mesh {
-    /// Converts this sector into a [`Mesh`] using a default [`CircularSectorMeshBuilder`].
-    ///
-    /// See the documentation of [`CircularSectorMeshBuilder`] for more details.
-    fn from(sector: CircularSector) -> Self {
-        sector.mesh().build()
     }
 }
 
@@ -313,7 +299,7 @@ impl CircularSegmentMeshBuilder {
 }
 
 impl MeshBuilder for CircularSegmentMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let resolution = self.resolution as usize;
         let mut indices = Vec::with_capacity((resolution - 1) * 3);
         let mut positions = Vec::with_capacity(resolution + 1);
@@ -387,22 +373,13 @@ impl Extrudable for CircularSegmentMeshBuilder {
 }
 
 impl Meshable for CircularSegment {
-    type Output = CircularSegmentMeshBuilder;
+    type Builder = CircularSegmentMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         CircularSegmentMeshBuilder {
             segment: *self,
             ..Default::default()
         }
-    }
-}
-
-impl From<CircularSegment> for Mesh {
-    /// Converts this sector into a [`Mesh`] using a default [`CircularSegmentMeshBuilder`].
-    ///
-    /// See the documentation of [`CircularSegmentMeshBuilder`] for more details.
-    fn from(segment: CircularSegment) -> Self {
-        segment.mesh().build()
     }
 }
 
@@ -417,17 +394,17 @@ pub struct ConvexPolygonMeshBuilder {
 }
 
 impl Meshable for ConvexPolygon {
-    type Output = ConvexPolygonMeshBuilder;
+    type Builder = ConvexPolygonMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
-        Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
+        Self::Builder {
             vertices: self.vertices().to_vec(),
         }
     }
 }
 
 impl MeshBuilder for ConvexPolygonMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let len = self.vertices.len();
         let mut indices = Vec::with_capacity((len - 2) * 3);
         let mut positions = Vec::with_capacity(len);
@@ -472,12 +449,6 @@ impl Extrudable for ConvexPolygonMeshBuilder {
     }
 }
 
-impl From<ConvexPolygon> for Mesh {
-    fn from(polygon: ConvexPolygon) -> Self {
-        polygon.mesh().build()
-    }
-}
-
 /// A builder used for creating a [`Mesh`] with a [`RegularPolygon`] shape.
 #[derive(Clone, Copy, Debug, Reflect)]
 #[reflect(Default, Debug, Clone)]
@@ -518,10 +489,10 @@ impl RegularPolygonMeshBuilder {
 }
 
 impl Meshable for RegularPolygon {
-    type Output = RegularPolygonMeshBuilder;
+    type Builder = RegularPolygonMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
-        Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
+        Self::Builder {
             circumradius: self.circumcircle.radius,
             sides: self.sides,
         }
@@ -529,12 +500,12 @@ impl Meshable for RegularPolygon {
 }
 
 impl MeshBuilder for RegularPolygonMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         // The ellipse mesh is just a regular polygon with two radii
         Ellipse::new(self.circumradius, self.circumradius)
-            .mesh()
+            .mesh_builder()
             .resolution(self.sides)
-            .build()
+            .mesh()
     }
 }
 
@@ -543,12 +514,6 @@ impl Extrudable for RegularPolygonMeshBuilder {
         vec![PerimeterSegment::Flat {
             indices: (0..self.sides).chain([0]).collect(),
         }]
-    }
-}
-
-impl From<RegularPolygon> for Mesh {
-    fn from(polygon: RegularPolygon) -> Self {
-        polygon.mesh().build()
     }
 }
 
@@ -593,7 +558,7 @@ impl EllipseMeshBuilder {
 }
 
 impl MeshBuilder for EllipseMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let resolution = self.resolution as usize;
         let mut indices = Vec::with_capacity((resolution - 2) * 3);
         let mut positions = Vec::with_capacity(resolution);
@@ -641,19 +606,13 @@ impl Extrudable for EllipseMeshBuilder {
 }
 
 impl Meshable for Ellipse {
-    type Output = EllipseMeshBuilder;
+    type Builder = EllipseMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         EllipseMeshBuilder {
             ellipse: *self,
             ..Default::default()
         }
-    }
-}
-
-impl From<Ellipse> for Mesh {
-    fn from(ellipse: Ellipse) -> Self {
-        ellipse.mesh().build()
     }
 }
 
@@ -672,7 +631,7 @@ impl Segment2dMeshBuilder {
 }
 
 impl MeshBuilder for Segment2dMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let positions = self.segment.vertices.map(|v| v.extend(0.0)).to_vec();
         let indices = Indices::U32(vec![0, 1]);
 
@@ -683,17 +642,10 @@ impl MeshBuilder for Segment2dMeshBuilder {
 }
 
 impl Meshable for Segment2d {
-    type Output = Segment2dMeshBuilder;
+    type Builder = Segment2dMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         Segment2dMeshBuilder::new(*self)
-    }
-}
-
-impl From<Segment2d> for Mesh {
-    /// Converts this segment into a [`Mesh`] using a default [`Segment2dMeshBuilder`].
-    fn from(segment: Segment2d) -> Self {
-        segment.mesh().build()
     }
 }
 
@@ -705,7 +657,7 @@ pub struct Polyline2dMeshBuilder {
 }
 
 impl MeshBuilder for Polyline2dMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let positions: Vec<_> = self
             .polyline
             .vertices
@@ -726,18 +678,12 @@ impl MeshBuilder for Polyline2dMeshBuilder {
 }
 
 impl Meshable for Polyline2d {
-    type Output = Polyline2dMeshBuilder;
+    type Builder = Polyline2dMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         Polyline2dMeshBuilder {
             polyline: self.clone(),
         }
-    }
-}
-
-impl From<Polyline2d> for Mesh {
-    fn from(polyline: Polyline2d) -> Self {
-        polyline.mesh().build()
     }
 }
 
@@ -781,7 +727,7 @@ impl AnnulusMeshBuilder {
 }
 
 impl MeshBuilder for AnnulusMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let inner_radius = self.annulus.inner_circle.radius;
         let outer_radius = self.annulus.outer_circle.radius;
 
@@ -858,19 +804,13 @@ impl Extrudable for AnnulusMeshBuilder {
 }
 
 impl Meshable for Annulus {
-    type Output = AnnulusMeshBuilder;
+    type Builder = AnnulusMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         AnnulusMeshBuilder {
             annulus: *self,
             ..Default::default()
         }
-    }
-}
-
-impl From<Annulus> for Mesh {
-    fn from(annulus: Annulus) -> Self {
-        annulus.mesh().build()
     }
 }
 
@@ -913,7 +853,7 @@ impl RhombusMeshBuilder {
 }
 
 impl MeshBuilder for RhombusMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let [hhd, vhd] = [self.half_diagonals.x, self.half_diagonals.y];
         let positions = vec![
             [hhd, 0.0, 0.0],
@@ -945,18 +885,12 @@ impl Extrudable for RhombusMeshBuilder {
 }
 
 impl Meshable for Rhombus {
-    type Output = RhombusMeshBuilder;
+    type Builder = RhombusMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
-        Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
+        Self::Builder {
             half_diagonals: self.half_diagonals,
         }
-    }
-}
-
-impl From<Rhombus> for Mesh {
-    fn from(rhombus: Rhombus) -> Self {
-        rhombus.mesh().build()
     }
 }
 
@@ -977,15 +911,15 @@ impl Triangle2dMeshBuilder {
 }
 
 impl Meshable for Triangle2d {
-    type Output = Triangle2dMeshBuilder;
+    type Builder = Triangle2dMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
-        Self::Output { triangle: *self }
+    fn mesh_builder(&self) -> Self::Builder {
+        Self::Builder { triangle: *self }
     }
 }
 
 impl MeshBuilder for Triangle2dMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let vertices_3d = self.triangle.vertices.map(|v| v.extend(0.));
 
         let positions: Vec<_> = vertices_3d.into();
@@ -1031,12 +965,6 @@ impl Extrudable for Triangle2dMeshBuilder {
     }
 }
 
-impl From<Triangle2d> for Mesh {
-    fn from(triangle: Triangle2d) -> Self {
-        triangle.mesh().build()
-    }
-}
-
 /// A builder used for creating a [`Mesh`] with a [`Rectangle`] shape.
 #[derive(Clone, Copy, Debug, Reflect)]
 #[reflect(Default, Debug, Clone)]
@@ -1070,7 +998,7 @@ impl RectangleMeshBuilder {
 }
 
 impl MeshBuilder for RectangleMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let [hw, hh] = [self.half_size.x, self.half_size.y];
         let positions = vec![
             [hw, hh, 0.0],
@@ -1102,18 +1030,12 @@ impl Extrudable for RectangleMeshBuilder {
 }
 
 impl Meshable for Rectangle {
-    type Output = RectangleMeshBuilder;
+    type Builder = RectangleMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         RectangleMeshBuilder {
             half_size: self.half_size,
         }
-    }
-}
-
-impl From<Rectangle> for Mesh {
-    fn from(rectangle: Rectangle) -> Self {
-        rectangle.mesh().build()
     }
 }
 
@@ -1160,7 +1082,7 @@ impl Capsule2dMeshBuilder {
 }
 
 impl MeshBuilder for Capsule2dMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         // The resolution is the number of vertices for one semicircle
         let resolution = self.resolution;
         let vertex_count = 2 * resolution;
@@ -1262,19 +1184,13 @@ impl Extrudable for Capsule2dMeshBuilder {
 }
 
 impl Meshable for Capsule2d {
-    type Output = Capsule2dMeshBuilder;
+    type Builder = Capsule2dMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         Capsule2dMeshBuilder {
             capsule: *self,
             ..Default::default()
         }
-    }
-}
-
-impl From<Capsule2d> for Mesh {
-    fn from(capsule: Capsule2d) -> Self {
-        capsule.mesh().build()
     }
 }
 
@@ -1283,8 +1199,8 @@ pub struct RingMeshBuilder<P>
 where
     P: Primitive2d + Meshable,
 {
-    pub outer_shape_builder: P::Output,
-    pub inner_shape_builder: P::Output,
+    pub outer_shape_builder: P::Builder,
+    pub inner_shape_builder: P::Builder,
 }
 
 impl<P> RingMeshBuilder<P>
@@ -1294,20 +1210,20 @@ where
     /// Create a new `RingMeshBuilder<P>` from a given `Ring<P>` shape.
     pub fn new(ring: &Ring<P>) -> Self {
         Self {
-            outer_shape_builder: ring.outer_shape.mesh(),
-            inner_shape_builder: ring.inner_shape.mesh(),
+            outer_shape_builder: ring.outer_shape.mesh_builder(),
+            inner_shape_builder: ring.inner_shape.mesh_builder(),
         }
     }
 
     /// Apply a function to the inner builders
-    pub fn with_inner(mut self, func: impl Fn(P::Output) -> P::Output) -> Self {
+    pub fn with_inner(mut self, func: impl Fn(P::Builder) -> P::Builder) -> Self {
         self.outer_shape_builder = func(self.outer_shape_builder);
         self.inner_shape_builder = func(self.inner_shape_builder);
         self
     }
 
     fn get_vertex_attributes(&self) -> Option<RingMeshBuilderVertexAttributes> {
-        fn get_positions(mesh: &mut Mesh) -> Option<&mut Vec<[f32; 3]>> {
+        fn get_positions(mesh: &mut UMesh) -> Option<&mut Vec<[f32; 3]>> {
             if let VertexAttributeValues::Float32x3(data) =
                 mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)?
             {
@@ -1317,7 +1233,7 @@ where
             }
         }
 
-        fn get_uvs(mesh: &mut Mesh) -> Option<&mut Vec<[f32; 2]>> {
+        fn get_uvs(mesh: &mut UMesh) -> Option<&mut Vec<[f32; 2]>> {
             if let VertexAttributeValues::Float32x2(data) =
                 mesh.attribute_mut(Mesh::ATTRIBUTE_UV_0)?
             {
@@ -1327,7 +1243,7 @@ where
             }
         }
 
-        fn get_normals(mesh: &mut Mesh) -> Option<&mut Vec<[f32; 3]>> {
+        fn get_normals(mesh: &mut UMesh) -> Option<&mut Vec<[f32; 3]>> {
             if let VertexAttributeValues::Float32x3(data) =
                 mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)?
             {
@@ -1337,8 +1253,8 @@ where
             }
         }
 
-        let mut outer = self.outer_shape_builder.build();
-        let mut inner = self.inner_shape_builder.build();
+        let mut outer = self.outer_shape_builder.mesh();
+        let mut inner = self.inner_shape_builder.mesh();
 
         assert_eq!(
             outer.primitive_topology(),
@@ -1388,7 +1304,7 @@ where
     /// It is assumed that the `primitive_topology` of the mesh returned by
     /// the underlying builder is [`PrimitiveTopology::TriangleList`]
     /// and that the mesh has [`Mesh::ATTRIBUTE_POSITION`], [`Mesh::ATTRIBUTE_NORMAL`] and [`Mesh::ATTRIBUTE_UV_0`] attributes.
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         if let Some(RingMeshBuilderVertexAttributes {
             outer_uvs,
             inner_uvs,
@@ -1458,7 +1374,7 @@ where
 impl<P> Extrudable for RingMeshBuilder<P>
 where
     P: Primitive2d + Meshable,
-    P::Output: Extrudable,
+    P::Builder: Extrudable,
 {
     /// A list of the indices each representing a part of the perimeter of the mesh.
     ///
@@ -1525,19 +1441,10 @@ impl<P> Meshable for Ring<P>
 where
     P: Primitive2d + Meshable,
 {
-    type Output = RingMeshBuilder<P>;
+    type Builder = RingMeshBuilder<P>;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         RingMeshBuilder::new(self)
-    }
-}
-
-impl<P> From<Ring<P>> for Mesh
-where
-    P: Primitive2d + Meshable,
-{
-    fn from(ring: Ring<P>) -> Self {
-        ring.mesh().build()
     }
 }
 
@@ -1550,7 +1457,7 @@ mod tests {
     };
     use bevy_platform::collections::HashSet;
 
-    use crate::{Mesh, MeshBuilder, Meshable, VertexAttributeValues};
+    use crate::{Mesh, MeshBuilder, Meshable, UMesh, VertexAttributeValues};
 
     fn count_distinct_positions(points: &[[f32; 3]]) -> usize {
         let mut map = <HashSet<_>>::default();
@@ -1562,12 +1469,12 @@ mod tests {
 
     #[test]
     fn test_annulus() {
-        let mesh = Annulus::new(1.0, 1.2).mesh().resolution(16).build();
+        let mesh = Annulus::new(1.0, 1.2).mesh_builder().resolution(16).mesh();
 
         assert_eq!(
             32,
             count_distinct_positions(
-                mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+                mesh.get_attribute(Mesh::ATTRIBUTE_POSITION)
                     .unwrap()
                     .as_float3()
                     .unwrap()
@@ -1590,7 +1497,7 @@ mod tests {
 
     #[test]
     fn test_regular_polygon() {
-        let mut mesh = Mesh::from(RegularPolygon::new(7.0, 4));
+        let mut mesh = UMesh::from(RegularPolygon::new(7.0, 4));
 
         let Some(VertexAttributeValues::Float32x3(mut positions)) =
             mesh.remove_attribute(Mesh::ATTRIBUTE_POSITION)
@@ -1637,7 +1544,7 @@ mod tests {
         ])
         .unwrap();
 
-        let mut mesh = Mesh::from(polygon);
+        let mut mesh = UMesh::from(polygon);
 
         let Some(VertexAttributeValues::Float32x3(mut positions)) =
             mesh.remove_attribute(Mesh::ATTRIBUTE_POSITION)

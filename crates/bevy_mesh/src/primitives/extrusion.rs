@@ -4,7 +4,7 @@ use bevy_math::{
 };
 
 use super::{MeshBuilder, Meshable};
-use crate::{Indices, Mesh, PrimitiveTopology, VertexAttributeValues};
+use crate::{Indices, Mesh, PrimitiveTopology, UMesh, VertexAttributeValues};
 
 /// A type representing a segment of the perimeter of an extrudable mesh.
 pub enum PerimeterSegment {
@@ -88,13 +88,13 @@ pub trait Extrudable: MeshBuilder {
 impl<P> Meshable for Extrusion<P>
 where
     P: Primitive2d + Meshable,
-    P::Output: Extrudable,
+    P::Builder: Extrudable,
 {
-    type Output = ExtrusionBuilder<P>;
+    type Builder = ExtrusionBuilder<P>;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         ExtrusionBuilder {
-            base_builder: self.base_shape.mesh(),
+            base_builder: self.base_shape.mesh_builder(),
             half_depth: self.half_depth,
             segments: 1,
         }
@@ -105,9 +105,9 @@ where
 pub struct ExtrusionBuilder<P>
 where
     P: Primitive2d + Meshable,
-    P::Output: Extrudable,
+    P::Builder: Extrudable,
 {
-    pub base_builder: P::Output,
+    pub base_builder: P::Builder,
     pub half_depth: f32,
     pub segments: usize,
 }
@@ -115,12 +115,12 @@ where
 impl<P> ExtrusionBuilder<P>
 where
     P: Primitive2d + Meshable,
-    P::Output: Extrudable,
+    P::Builder: Extrudable,
 {
     /// Create a new `ExtrusionBuilder<P>` from a given `base_shape` and the full `depth` of the extrusion.
     pub fn new(base_shape: &P, depth: f32) -> Self {
         Self {
-            base_builder: base_shape.mesh(),
+            base_builder: base_shape.mesh_builder(),
             half_depth: depth / 2.,
             segments: 1,
         }
@@ -134,7 +134,7 @@ where
     }
 
     /// Apply a function to the inner builder
-    pub fn with_inner(mut self, func: impl Fn(P::Output) -> P::Output) -> Self {
+    pub fn with_inner(mut self, func: impl Fn(P::Builder) -> P::Builder) -> Self {
         self.base_builder = func(self.base_builder);
         self
     }
@@ -175,13 +175,13 @@ impl ExtrusionBuilder<Capsule2d> {
 impl<P> MeshBuilder for ExtrusionBuilder<P>
 where
     P: Primitive2d + Meshable,
-    P::Output: Extrudable,
+    P::Builder: Extrudable,
 {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         // Create and move the base mesh to the front
         let mut front_face =
             self.base_builder
-                .build()
+                .mesh()
                 .translated_by(Vec3::new(0., 0., self.half_depth));
 
         // Move the uvs of the front face to be between (0., 0.) and (0.5, 0.5)
@@ -195,6 +195,7 @@ where
 
         let back_face = {
             let topology = front_face.primitive_topology();
+
             // Flip the normals, etc. and move mesh to the back
             let mut back_face = front_face.clone().scaled_by(Vec3::new(1., 1., -1.));
 
@@ -232,13 +233,13 @@ where
 
         // An extrusion of depth 0 does not need a mantel
         if self.half_depth == 0. {
-            front_face.merge(&back_face).unwrap();
+            front_face.merge(back_face.as_ref()).unwrap();
             return front_face;
         }
 
         let mantel = {
             let Some(VertexAttributeValues::Float32x3(cap_verts)) =
-                front_face.attribute(Mesh::ATTRIBUTE_POSITION)
+                front_face.get_attribute(Mesh::ATTRIBUTE_POSITION)
             else {
                 panic!("The base mesh did not have vertex positions");
             };
@@ -417,25 +418,15 @@ where
                 }
             }
 
-            Mesh::new(PrimitiveTopology::TriangleList, front_face.asset_usage)
+            Mesh::new(PrimitiveTopology::TriangleList, front_face.asset_usage())
                 .with_inserted_indices(Indices::U32(indices))
                 .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
                 .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
                 .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
         };
 
-        front_face.merge(&back_face).unwrap();
-        front_face.merge(&mantel).unwrap();
+        front_face.merge(back_face.as_ref()).unwrap();
+        front_face.merge(mantel.as_ref()).unwrap();
         front_face
-    }
-}
-
-impl<P> From<Extrusion<P>> for Mesh
-where
-    P: Primitive2d + Meshable,
-    P::Output: Extrudable,
-{
-    fn from(value: Extrusion<P>) -> Self {
-        value.mesh().build()
     }
 }

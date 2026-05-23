@@ -92,7 +92,10 @@ fn draw(
     gizmos: &mut Gizmos<SkinnedMeshBoundsGizmoConfigGroup>,
 ) {
     if let Some(mesh_asset) = mesh_assets.get(mesh)
-        && let Some(bounds) = mesh_asset.skinned_mesh_bounds()
+        && let Some(bounds) = mesh_asset
+            .untaken_ref()
+            .expect("TODO: untangle Mesh extraction with skinned mesh bounds extraction: for now just set mesh RenderAssetUsages::MAIN_WORLD as true")
+            .skinned_mesh_bounds()
         && let Some(inverse_bindposes_asset) =
             inverse_bindposes_assets.get(&skinned_mesh.inverse_bindposes)
     {

@@ -1,7 +1,7 @@
 //! Manages mesh vertex and index buffers.
 
 use alloc::borrow::Cow;
-use bevy_mesh::Indices;
+use bevy_mesh::{Indices, Mesh, UMeshRef};
 
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetId;
@@ -18,7 +18,7 @@ use wgpu::{BufferUsages, DownlevelFlags, COPY_BUFFER_ALIGNMENT};
 use bevy_mesh::morph::MorphAttributes;
 
 use crate::{
-    mesh::{Mesh, MeshVertexBufferLayouts, RenderMesh},
+    mesh::{MeshVertexBufferLayouts, RenderMesh},
     render_asset::{prepare_assets, ExtractedAssets},
     renderer::{RenderAdapter, RenderDevice, RenderQueue},
     slab_allocator::{
@@ -378,7 +378,8 @@ impl MeshAllocator {
 
             // Allocate vertex data. Note that we can only pack mesh vertex data
             // together if the platform supports it.
-            let vertex_element_layout = ElementLayout::vertex(mesh_vertex_buffer_layouts, mesh);
+            let vertex_element_layout =
+                ElementLayout::vertex(mesh_vertex_buffer_layouts, mesh.as_ref());
             if self.general_vertex_slabs_supported {
                 allocation_stage.allocate(
                     &MeshAllocationKey::new(*mesh_id, ElementClass::Vertex),
@@ -394,9 +395,10 @@ impl MeshAllocator {
             }
 
             // Allocate index data.
-            if let (Some(index_buffer_data), Some(index_element_layout)) =
-                (mesh.get_index_buffer_bytes(), ElementLayout::index(mesh))
-            {
+            if let (Some(index_buffer_data), Some(index_element_layout)) = (
+                mesh.get_index_buffer_bytes(),
+                ElementLayout::index(mesh.as_ref()),
+            ) {
                 allocation_stage.allocate(
                     &MeshAllocationKey::new(*mesh_id, ElementClass::Index),
                     index_buffer_data.len() as u64,
@@ -422,10 +424,10 @@ impl MeshAllocator {
 
         // Copy new mesh data in.
         for (mesh_id, mesh) in &extracted_meshes.extracted {
-            self.copy_mesh_vertex_data(mesh_id, mesh, render_device, render_queue);
-            self.copy_mesh_index_data(mesh_id, mesh, render_device, render_queue);
+            self.copy_mesh_vertex_data(mesh_id, mesh.as_ref(), render_device, render_queue);
+            self.copy_mesh_index_data(mesh_id, mesh.as_ref(), render_device, render_queue);
             #[cfg(feature = "morph")]
-            self.copy_mesh_morph_target_data(mesh_id, mesh, render_device, render_queue);
+            self.copy_mesh_morph_target_data(mesh_id, mesh.as_ref(), render_device, render_queue);
         }
     }
 
@@ -434,7 +436,7 @@ impl MeshAllocator {
     fn copy_mesh_vertex_data(
         &mut self,
         mesh_id: &AssetId<Mesh>,
-        mesh: &Mesh,
+        mesh: UMeshRef<'_>,
         render_device: &RenderDevice,
         render_queue: &RenderQueue,
     ) {
@@ -453,7 +455,7 @@ impl MeshAllocator {
     fn copy_mesh_index_data(
         &mut self,
         mesh_id: &AssetId<Mesh>,
-        mesh: &Mesh,
+        mesh: UMeshRef<'_>,
         render_device: &RenderDevice,
         render_queue: &RenderQueue,
     ) {
@@ -477,7 +479,7 @@ impl MeshAllocator {
     fn copy_mesh_morph_target_data(
         &mut self,
         mesh_id: &AssetId<Mesh>,
-        mesh: &Mesh,
+        mesh: UMeshRef<'_>,
         render_device: &RenderDevice,
         render_queue: &RenderQueue,
     ) {
@@ -540,7 +542,7 @@ impl ElementLayout {
     /// data.
     fn vertex(
         mesh_vertex_buffer_layouts: &mut MeshVertexBufferLayouts,
-        mesh: &Mesh,
+        mesh: UMeshRef<'_>,
     ) -> ElementLayout {
         let mesh_vertex_buffer_layout =
             mesh.get_mesh_vertex_buffer_layout(mesh_vertex_buffer_layouts);
@@ -552,7 +554,7 @@ impl ElementLayout {
 
     /// Creates the appropriate [`ElementLayout`] for the given mesh's index
     /// data.
-    fn index(mesh: &Mesh) -> Option<ElementLayout> {
+    fn index(mesh: UMeshRef<'_>) -> Option<ElementLayout> {
         let size = match mesh.indices()? {
             Indices::U16(_) => 2,
             Indices::U32(_) => 4,

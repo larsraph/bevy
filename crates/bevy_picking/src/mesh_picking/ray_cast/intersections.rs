@@ -1,5 +1,5 @@
 use bevy_math::{bounding::Aabb3d, Affine3A, Dir3, Ray3d, Vec2, Vec3, Vec3A};
-use bevy_mesh::{Indices, Mesh, PrimitiveTopology, VertexAttributeValues};
+use bevy_mesh::{Indices, Mesh, PrimitiveTopology, UMeshRef, VertexAttributeValues};
 use bevy_reflect::Reflect;
 
 use super::Backfaces;
@@ -37,7 +37,7 @@ pub struct RayTriangleHit {
 
 /// Casts a ray on a mesh, and returns the intersection.
 pub(super) fn ray_intersection_over_mesh(
-    mesh: &Mesh,
+    mesh: UMeshRef<'_>,
     transform: &Affine3A,
     ray: Ray3d,
     cull: Backfaces,
@@ -46,26 +46,21 @@ pub(super) fn ray_intersection_over_mesh(
         return None; // ray_mesh_intersection assumes vertices are laid out in a triangle list
     }
     // Vertex positions are required
-    let positions = mesh
-        .try_attribute(Mesh::ATTRIBUTE_POSITION)
-        .ok()?
-        .as_float3()?;
+    let positions = mesh.get_attribute(Mesh::ATTRIBUTE_POSITION)?.as_float3()?;
 
     // Normals are optional
     let normals = mesh
-        .try_attribute(Mesh::ATTRIBUTE_NORMAL)
-        .ok()
+        .get_attribute(Mesh::ATTRIBUTE_NORMAL)
         .and_then(|normal_values| normal_values.as_float3());
 
     let uvs = mesh
-        .try_attribute(Mesh::ATTRIBUTE_UV_0)
-        .ok()
+        .get_attribute(Mesh::ATTRIBUTE_UV_0)
         .and_then(|uvs| match uvs {
             VertexAttributeValues::Float32x2(uvs) => Some(uvs.as_slice()),
             _ => None,
         });
 
-    match mesh.try_indices().ok() {
+    match mesh.indices() {
         Some(Indices::U16(indices)) => {
             ray_mesh_intersection(ray, transform, positions, normals, Some(indices), uvs, cull)
         }

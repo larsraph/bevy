@@ -471,10 +471,10 @@ impl BoundedExtrusion for Heart {}
 // You can use the `Meshable` trait to create a `MeshBuilder` for the primitive.
 impl Meshable for Heart {
     // The `MeshBuilder` can be used to create the actual mesh for that primitive.
-    type Output = HeartMeshBuilder;
+    type Builder = HeartMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
-        Self::Output {
+    fn mesh(&self) -> Self::Builder {
+        Self::Builder {
             heart: *self,
             resolution: 32,
         }

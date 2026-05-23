@@ -1,5 +1,5 @@
 use super::triangle3d;
-use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
+use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology, UMesh};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::primitives::{Tetrahedron, Triangle3d};
 use bevy_reflect::prelude::*;
@@ -12,7 +12,7 @@ pub struct TetrahedronMeshBuilder {
 }
 
 impl MeshBuilder for TetrahedronMeshBuilder {
-    fn build(&self) -> Mesh {
+    fn mesh(&self) -> UMesh {
         let mut faces: Vec<_> = self.tetrahedron.faces().into();
 
         // If the tetrahedron has negative orientation, reverse all the triangles so that
@@ -52,15 +52,9 @@ impl MeshBuilder for TetrahedronMeshBuilder {
 }
 
 impl Meshable for Tetrahedron {
-    type Output = TetrahedronMeshBuilder;
+    type Builder = TetrahedronMeshBuilder;
 
-    fn mesh(&self) -> Self::Output {
+    fn mesh_builder(&self) -> Self::Builder {
         TetrahedronMeshBuilder { tetrahedron: *self }
-    }
-}
-
-impl From<Tetrahedron> for Mesh {
-    fn from(tetrahedron: Tetrahedron) -> Self {
-        tetrahedron.mesh().build()
     }
 }

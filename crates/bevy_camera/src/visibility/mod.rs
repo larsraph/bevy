@@ -607,10 +607,10 @@ fn update_skinned_mesh_bounds(
         .for_each(|(mut aabb, mesh, skinned_mesh, world_from_entity)| {
             if let Some(inverse_bindposes_asset) =
                 inverse_bindposes_assets.get(&skinned_mesh.inverse_bindposes)
-                && let Some(mesh_asset) = mesh_assets.get(mesh)
+                && let Some(mesh_ref) = mesh_assets.get(mesh).map(|mesh| mesh.untaken_ref().expect("For DynamicSknnedMeshBounds to work must have RenderAssetUsages::MAIN_WORLD; TODO: Fix this."))
                 && let Ok(skinned_aabb) = entity_aabb_from_skinned_mesh_bounds(
                     &joint_entities,
-                    mesh_asset,
+                    mesh_ref,
                     skinned_mesh,
                     inverse_bindposes_asset,
                     world_from_entity,

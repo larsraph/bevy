@@ -170,7 +170,7 @@ fn allocate_blas(
     (blas, blas_size)
 }
 
-fn is_mesh_raytracing_compatible(mesh: &Mesh) -> bool {
+fn is_mesh_raytracing_compatible(mesh: MeshRef<'_>) -> bool {
     let triangle_list = mesh.primitive_topology() == PrimitiveTopology::TriangleList;
     let vertex_attributes = mesh.attributes().map(|(attribute, _)| attribute.id).eq([
         Mesh::ATTRIBUTE_POSITION.id,

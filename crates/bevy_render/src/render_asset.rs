@@ -10,7 +10,7 @@ use bevy_ecs::{
     system::{ScheduleSystem, StaticSystemParam, SystemParam, SystemParamItem, SystemState},
     world::{FromWorld, Mut},
 };
-use bevy_log::{debug, error, warn};
+use bevy_log::{debug, error};
 use bevy_platform::collections::{HashMap, HashSet};
 use core::marker::PhantomData;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -28,17 +28,6 @@ pub enum PrepareAssetError<E: Send + Sync + 'static> {
 #[derive(SystemSet, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct AssetExtractionSystems;
 
-/// Error returned when an asset due for extraction has already been extracted
-#[derive(Debug, Error)]
-pub enum AssetExtractionError {
-    #[error("The asset has already been extracted")]
-    AlreadyExtracted,
-    #[error("The asset type does not support extraction. To clone the asset to the renderworld, use `RenderAssetUsages::default()`")]
-    NoExtractionImplementation,
-}
-
-type Data<M: Copy, D: CloneOrTake> = (M, D::Inner);
-
 /// Describes how an asset gets extracted and prepared for rendering.
 ///
 /// In the [`ExtractSchedule`] step the [`RenderAsset::SourceAsset`] is transferred
@@ -55,16 +44,9 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// For convenience use the [`lifetimeless`](bevy_ecs::system::lifetimeless) [`SystemParam`].
     type Param: SystemParam;
 
-    /// Any heavy data that could be moved into the render world if neccecary
-    type RawData: CloneOrTake + Send + Sync + 'static;
+    type Extracted: Send + Sync + 'static;
 
-    type MetaData: Copy + Send + Sync + 'static;
-
-    /// Whether or not to unload the asset after extracting it to the render world.
-    #[inline]
-    fn asset_usage(_source_asset: &Self::SourceAsset) -> RenderAssetUsages {
-        RenderAssetUsages::default()
-    }
+    fn extract(source_asset: &mut Self::SourceAsset) -> Self::Extracted;
 
     /// Size of the data the asset will upload to the gpu. Specifying a return value
     /// will allow the asset to be throttled via [`RenderAssetBytesPerFrame`].
@@ -73,21 +55,19 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
         unused_variables,
         reason = "The parameters here are intentionally unused by the default implementation; however, putting underscores here will result in the underscores being copied by rust-analyzer's tab completion."
     )]
-    fn byte_len(data: &Data<Self::MetaData, Self::RawData>) -> Option<usize> {
+    fn byte_len(extracted: &Self::Extracted) -> Option<usize> {
         None
     }
-
-    fn data(source_asset: &Self::SourceAsset) -> (Self::MetaData, &mut Self::RawData);
 
     /// Prepares the [`RenderAsset::Data`] and [`RenderAsset::Meta`] for the GPU by transforming it into a [`RenderAsset`].
     ///
     /// ECS data may be accessed via `param`.
     fn prepare_asset(
-        data: Data<Self::MetaData, Self::RawData>,
+        extracted: Self::Extracted,
         asset_id: AssetId<Self::SourceAsset>,
         param: &mut SystemParamItem<Self::Param>,
         previous_asset: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Data<Self::MetaData, Self::RawData>>>;
+    ) -> Result<Self, PrepareAssetError<Self::Extracted>>;
 
     /// Called whenever the [`RenderAsset`] is dropped (the [`RenderAsset::SourceAsset`] is reextracted (updated) or removed).
     ///
@@ -111,7 +91,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
 ///
 /// In order to not support moving data into the render world call `CloneOrTake::clone` from inside `CloneOrTake::take`.
 pub trait CloneOrTake {
-    type Inner: Send + Sync + 'static;
+    type Inner;
 
     /// Method to clone the data into the Render World
     fn clone(&self) -> Option<Self::Inner>;
@@ -215,7 +195,7 @@ pub struct ExtractedAssets<A: RenderAsset> {
     /// The assets extracted this frame.
     ///
     /// These are assets that were either added or modified this frame.
-    pub extracted: Vec<(AssetId<A::SourceAsset>, Data<A::MetaData, A::RawData>)>,
+    pub extracted: Vec<(AssetId<A::SourceAsset>, MostlyExtracted)>,
 
     /// IDs of the assets that were removed this frame.
     ///
@@ -369,21 +349,24 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
             }
 
             for id in needs_extracting.drain() {
-                if let Some(asset) = assets.get_mut_untracked(id) {
+                if let Some(mut asset) = assets.get_mut_untracked(id) {
                     let asset_usage = A::asset_usage(asset);
                     if asset_usage.contains(RenderAssetUsages::RENDER_WORLD) {
-                        let (meta, data) = A::data(asset);
-                        let data = if asset_usage == RenderAssetUsages::RENDER_WORLD {
-                            data.take()
+                        let (mut not_taken, mut maybe_taken) = A::extract(asset);
+                        let maybe_taken = if asset_usage == RenderAssetUsages::RENDER_WORLD {
+                            maybe_taken.take()
                         } else {
-                            data.clone()
+                            maybe_taken.clone()
                         };
-                        if let Some(data) = data {
-                            extracted_assets.extracted.push((id, (meta, data)));
-                            extracted_assets.added.insert(id);
+                        let extracted = if let Some(maybe_taken) = maybe_taken {
+                            let not_taken = not_taken.process(&maybe_taken);
+                            (not_taken, Some(maybe_taken))
                         } else {
-                            warn!("`RenderAsset::Data` of asset {} of type {} already extracted.", id, core::any::type_name::<A>());
-                        }
+                            let not_taken = not_taken.pass();
+                            (not_taken, None)
+                        };
+                        extracted_assets.extracted.push((id, extracted));
+                        extracted_assets.added.insert(id);
                     }
                 }
             }
@@ -397,11 +380,7 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
 /// All assets that should be prepared next frame.
 #[derive(Resource)]
 pub struct PrepareNextFrameAssets<A: RenderAsset> {
-    assets: Vec<(
-        AssetId<A::SourceAsset>,
-        Data<A::MetaData, A::RawData>,
-        Option<A>,
-    )>,
+    assets: Vec<(AssetId<A::SourceAsset>, Extracted<A>, Option<A>)>,
 }
 
 impl<A: RenderAsset> Default for PrepareNextFrameAssets<A> {
@@ -425,13 +404,13 @@ pub fn prepare_assets<A: RenderAsset>(
 
     let mut param = param.into_inner();
     let queued_assets = core::mem::take(&mut prepare_next_frame.assets);
-    for (id, extracted_asset, previous_asset) in queued_assets {
+    for (id, extracted, previous_asset) in queued_assets {
         if extracted_assets.removed.contains(&id) || extracted_assets.added.contains(&id) {
             // skip previous frame's assets that have been removed or updated
             continue;
         }
 
-        let write_bytes = if let Some(size) = A::byte_len(&extracted_asset) {
+        let write_bytes = if let Some(size) = A::byte_len(&extracted) {
             // we could check if available bytes > byte_len here, but we want to make some
             // forward progress even if the asset is larger than the max bytes per frame.
             // this way we always write at least one (sized) asset per frame.
@@ -439,7 +418,7 @@ pub fn prepare_assets<A: RenderAsset>(
             if bpf.exhausted() {
                 prepare_next_frame
                     .assets
-                    .push((id, extracted_asset, previous_asset));
+                    .push((id, extracted, previous_asset));
                 continue;
             }
             size
@@ -447,16 +426,14 @@ pub fn prepare_assets<A: RenderAsset>(
             0
         };
 
-        match A::prepare_asset(extracted_asset, id, &mut param, previous_asset.as_ref()) {
+        match A::prepare_asset(extracted, id, &mut param, previous_asset) {
             Ok(prepared_asset) => {
                 render_assets.insert(id, prepared_asset);
                 bpf.write_bytes(write_bytes);
                 wrote_asset_count += 1;
             }
-            Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
-                prepare_next_frame
-                    .assets
-                    .push((id, extracted_asset, previous_asset));
+            Err(PrepareAssetError::RetryNextUpdate((extracted, previous))) => {
+                prepare_next_frame.assets.push((id, extracted, previous));
                 continue;
             }
             Err(PrepareAssetError::AsBindGroupError(e)) => {
@@ -478,17 +455,28 @@ pub fn prepare_assets<A: RenderAsset>(
         }
     }
 
-    for (id, extracted_asset) in extracted_assets.extracted.drain(..) {
+    for (id, extracted) in extracted_assets.extracted.drain(..) {
         // we remove previous here to ensure that if we are updating the asset then
         // any users will not see the old asset after a new asset is extracted,
         // even if the new asset is not yet ready or we are out of bytes to write.
         let previous_asset = render_assets.remove(id);
 
-        let write_bytes = if let Some(size) = A::byte_len(&extracted_asset) {
+        let extracted = if let (nt, Some(mt)) = extracted {
+            (nt, mt)
+        } else {
+            let Some(previous_asset) = render_assets.get_mut(id) else {
+                continue;
+            };
+            previous_asset.update_asset_without_mt(extracted.0, id, &mut param);
+
+            continue;
+        };
+
+        let write_bytes = if let Some(size) = A::byte_len(&extracted) {
             if bpf.exhausted() {
                 prepare_next_frame
                     .assets
-                    .push((id, extracted_asset, previous_asset));
+                    .push((id, extracted, previous_asset));
                 continue;
             }
             size
@@ -496,16 +484,14 @@ pub fn prepare_assets<A: RenderAsset>(
             0
         };
 
-        match A::prepare_asset(extracted_asset, id, &mut param, previous_asset.as_ref()) {
+        match A::prepare_asset(extracted, id, &mut param, previous_asset) {
             Ok(prepared_asset) => {
                 render_assets.insert(id, prepared_asset);
                 bpf.write_bytes(write_bytes);
                 wrote_asset_count += 1;
             }
-            Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
-                prepare_next_frame
-                    .assets
-                    .push((id, extracted_asset, previous_asset));
+            Err(PrepareAssetError::RetryNextUpdate((extracted, previous))) => {
+                prepare_next_frame.assets.push((id, extracted, previous));
                 continue;
             }
             Err(PrepareAssetError::AsBindGroupError(e)) => {
