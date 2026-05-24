@@ -46,7 +46,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
 
     /// Extracts the asset from the "main world" into the "render world".
     fn extract(
-        source_asset: &Self::SourceAsset,
+        source_asset: &mut Self::SourceAsset,
     ) -> Option<Result<Self::Extracted, Self::ExtractError>>;
 
     /// Size of the data the asset will upload to the gpu. Specifying a return value
