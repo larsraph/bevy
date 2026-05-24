@@ -188,6 +188,20 @@ impl<A: RenderAsset> Default for ExtractedAssets<A> {
     }
 }
 
+impl<A: RenderAsset> ExtractedAssets<A> {
+    fn split(
+        &mut self,
+    ) -> (
+        impl Fn(&AssetId<A::SourceAsset>) -> bool,
+        &mut Vec<(AssetId<A::SourceAsset>, A::Extracted)>,
+    ) {
+        (
+            |id| self.added.contains(id) || self.modified.contains(id),
+            &mut self.extracted,
+        )
+    }
+}
+
 /// Stores all GPU representations ([`RenderAsset`])
 /// of [`RenderAsset::SourceAsset`] as long as they exist.
 #[derive(Resource)]
@@ -347,13 +361,14 @@ pub fn prepare_assets<A: RenderAsset>(
     let mut wrote_asset_count = 0;
 
     let mut param = param.into_inner();
-    let queued_assets = core::mem::take(&mut prepare_next_frame.assets);
-    for (id, extracted_asset) in queued_assets {
-        if extracted_assets.removed.contains(&id) || extracted_assets.added.contains(&id) {
-            // skip previous frame's assets that have been removed or updated
-            continue;
-        }
 
+    let (changed, extracted) = extracted_assets.split();
+    let queued_assets = core::mem::take(&mut *prepare_next_frame);
+    for (id, extracted_asset) in queued_assets
+        .into_iter()
+        .filter(|(id, _)| !changed(id))
+        .chain(extracted.drain(..))
+    {
         let write_bytes = if let Some(size) = A::byte_len(&extracted_asset) {
             // we could check if available bytes > byte_len here, but we want to make some
             // forward progress even if the asset is larger than the max bytes per frame.
@@ -390,40 +405,6 @@ pub fn prepare_assets<A: RenderAsset>(
     for removed in extracted_assets.removed.drain() {
         render_assets.remove(removed);
         A::unload_asset(removed, &mut param);
-    }
-
-    for (id, extracted_asset) in extracted_assets.extracted.drain(..) {
-        // we remove previous here to ensure that if we are updating the asset then
-        // any users will not see the old asset after a new asset is extracted,
-        // even if the new asset is not yet ready or we are out of bytes to write.
-        let previous_asset = render_assets.remove(id);
-
-        let write_bytes = if let Some(size) = A::byte_len(&extracted_asset) {
-            if bpf.exhausted() {
-                prepare_next_frame.assets.push((id, extracted_asset));
-                continue;
-            }
-            size
-        } else {
-            0
-        };
-
-        match A::prepare_asset(extracted_asset, id, &mut param, previous_asset.as_ref()) {
-            Ok(prepared_asset) => {
-                render_assets.insert(id, prepared_asset);
-                bpf.write_bytes(write_bytes);
-                wrote_asset_count += 1;
-            }
-            Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
-                prepare_next_frame.assets.push((id, extracted_asset));
-            }
-            Err(PrepareAssetError::AsBindGroupError(e)) => {
-                error!(
-                    "{} Bind group construction failed: {e}",
-                    core::any::type_name::<A>()
-                );
-            }
-        }
     }
 
     if bpf.exhausted() && !prepare_next_frame.is_empty() {
