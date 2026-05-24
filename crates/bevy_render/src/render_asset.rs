@@ -76,7 +76,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
         previous_asset: Option<&Self>,
     ) -> Result<Self, PrepareAssetError<Self::Extracted>>;
 
-    /// Called whenever the [`RenderAsset::SourceAsset`] has been removed.
+    /// Called whenever the [`RenderAsset`] has been removed or replaced.
     ///
     /// You can implement this method if you need to access ECS data (via
     /// `param`) in order to perform cleanup tasks when the asset is removed.
@@ -87,6 +87,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
         reason = "The parameters here are intentionally unused by the default implementation; however, putting underscores here will result in the underscores being copied by rust-analyzer's tab completion."
     )]
     fn unload_asset(
+        self,
         asset_id: AssetId<Self::SourceAsset>,
         param: &mut SystemParamItem<Self::Param>,
     ) {
@@ -386,7 +387,9 @@ pub fn prepare_assets<A: RenderAsset>(
         let previous_asset = render_assets.get(id);
         match A::prepare_asset(extracted_asset, id, &mut param, previous_asset) {
             Ok(prepared_asset) => {
-                render_assets.insert(id, prepared_asset);
+                if let Some(previous_asset) = render_assets.insert(id, prepared_asset) {
+                    previous_asset.unload_asset(id, &mut param);
+                }
                 bpf.write_bytes(write_bytes);
                 wrote_asset_count += 1;
             }
@@ -401,10 +404,13 @@ pub fn prepare_assets<A: RenderAsset>(
             }
         }
     }
+    drop(changed);
+    drop(extracted);
 
-    for removed in extracted_assets.removed.drain() {
-        render_assets.remove(removed);
-        A::unload_asset(removed, &mut param);
+    for id in extracted_assets.removed.drain() {
+        if let Some(asset) = render_assets.remove(id) {
+            asset.unload_asset(id, &mut param);
+        }
     }
 
     if bpf.exhausted() && !prepare_next_frame.is_empty() {
