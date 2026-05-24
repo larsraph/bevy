@@ -39,9 +39,7 @@ use bevy_render::{
         RenderMesh, RenderMeshBufferInfo,
     },
     prelude::*,
-    render_asset::{
-        prepare_assets, PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets,
-    },
+    render_asset::{prepare_assets, RenderAsset, RenderAssetPlugin, RenderAssets, RetryOrError},
     render_phase::{
         AddRenderCommand, BinnedPhaseItem, BinnedRenderPhasePlugin, BinnedRenderPhaseType,
         CachedRenderPipelinePhaseItem, DrawFunctionId, DrawFunctions, PhaseItem,
@@ -954,7 +952,7 @@ impl RenderAsset for RenderWireframeMaterial {
         _asset_id: AssetId<Self::SourceAsset>,
         _param: &mut SystemParamItem<Self::Param>,
         _previous_asset: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
+    ) -> Result<Self, RetryOrError<Self::SourceAsset>> {
         Ok(RenderWireframeMaterial {
             color: source_asset.color.to_linear().to_f32_array(),
             line_width: source_asset.line_width,

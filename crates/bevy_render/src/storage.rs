@@ -1,5 +1,5 @@
 use crate::{
-    render_asset::{AssetExtractionError, PrepareAssetError, RenderAsset, RenderAssetPlugin},
+    render_asset::{AssetExtractionError, RetryOrError, RenderAsset, RenderAssetPlugin},
     render_resource::{Buffer, BufferUsages},
     renderer::{RenderDevice, RenderQueue},
 };
@@ -161,7 +161,7 @@ impl RenderAsset for GpuShaderBuffer {
         _: AssetId<Self::SourceAsset>,
         (render_device, render_queue): &mut SystemParamItem<Self::Param>,
         previous_asset: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
+    ) -> Result<Self, RetryOrError<Self::SourceAsset>> {
         let had_data = source_asset.data.is_some();
 
         // when cpu data is provided, the actual buffer size is determined by the vec length,

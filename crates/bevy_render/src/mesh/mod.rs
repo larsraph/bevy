@@ -5,7 +5,7 @@ pub mod morph;
 #[cfg(feature = "morph")]
 use crate::GpuResourceAppExt;
 use crate::{
-    render_asset::{AssetExtractionError, PrepareAssetError, RenderAsset, RenderAssetPlugin},
+    render_asset::{AssetExtractionError, RetryOrError, RenderAsset, RenderAssetPlugin},
     renderer::{RenderDevice, RenderQueue},
     texture::GpuImage,
     RenderApp,
@@ -172,7 +172,7 @@ impl RenderAsset for RenderMesh {
             _render_morph_targets_allocator,
         ): &mut SystemParamItem<Self::Param>,
         _: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
+    ) -> Result<Self, RetryOrError<Self::SourceAsset>> {
         let (buffer_info, index_format) = match mesh.indices() {
             Some(indices) => (
                 RenderMeshBufferInfo::Indexed {

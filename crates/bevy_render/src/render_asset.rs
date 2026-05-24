@@ -21,9 +21,10 @@ use std::error::Error;
 #[derive(SystemSet, Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct AssetExtractionSystems;
 
+/// Represents a failure state that should either be retried or emit an error.
 #[derive(Debug)]
-pub enum PrepareAssetError<R, E> {
-    RetryNextUpdate(R),
+pub enum RetryOrError<R, E> {
+    Retry(R),
     Error(E),
 }
 
@@ -64,6 +65,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// For convenience use the [`lifetimeless`](bevy_ecs::system::lifetimeless) [`SystemParam`].
     type Param: SystemParam;
 
+    /// The error type returned when preparing an asset.
     type PrepareError: Error;
 
     /// Prepares the [`RenderAsset::Extracted`]s for the GPU by transforming them into [`RenderAsset`]s.
@@ -78,7 +80,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     ) -> impl Iterator<
         Item = (
             AssetId<Self::SourceAsset>,
-            Result<Self, PrepareAssetError<Self::Extracted, Self::PrepareError>>,
+            Result<Self, RetryOrError<Self::Extracted, Self::PrepareError>>,
         ),
     >;
 
@@ -380,10 +382,10 @@ pub fn prepare_assets<A: RenderAsset>(
                 }
                 wrote_asset_count += 1;
             }
-            Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
+            Err(RetryOrError::Retry(extracted_asset)) => {
                 prepare_next_frame.push((id, extracted_asset));
             }
-            Err(PrepareAssetError::Error(e)) => {
+            Err(RetryOrError::Error(e)) => {
                 error!("{} prepare asset error: {e}", core::any::type_name::<A>());
             }
         }

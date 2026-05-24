@@ -55,7 +55,7 @@ use {
     bevy_math::{Affine3, Affine3A, Vec4},
     bevy_render::{
         extract_component::{ComponentUniforms, DynamicUniformIndex, UniformComponentPlugin},
-        render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
+        render_asset::{RenderAsset, RenderAssetPlugin, RenderAssets, RetryOrError},
         render_phase::{PhaseItem, RenderCommand, RenderCommandResult, TrackedRenderPass},
         render_resource::{
             binding_types::uniform_buffer, BindGroup, BindGroupEntries, BindGroupLayoutEntries,
@@ -260,7 +260,7 @@ impl RenderAsset for GpuLineGizmo {
         _: AssetId<Self::SourceAsset>,
         render_device: &mut SystemParamItem<Self::Param>,
         _: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
+    ) -> Result<Self, RetryOrError<Self::SourceAsset>> {
         let list_position_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             usage: BufferUsages::VERTEX,
             label: Some("LineGizmo Position Buffer"),

@@ -13,7 +13,7 @@ use bevy_math::{Affine2, FloatOrd, Rect, Vec2};
 use bevy_mesh::VertexBufferLayout;
 use bevy_render::{
     globals::{GlobalsBuffer, GlobalsUniform},
-    render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
+    render_asset::{RenderAsset, RenderAssetPlugin, RenderAssets, RetryOrError},
     render_phase::*,
     render_resource::{binding_types::uniform_buffer, *},
     renderer::{RenderDevice, RenderQueue},
@@ -570,7 +570,7 @@ impl<M: UiMaterial> RenderAsset for PreparedUiMaterial<M> {
             Self::Param,
         >,
         _: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
+    ) -> Result<Self, RetryOrError<Self::SourceAsset>> {
         let bind_group_data = material.bind_group_data();
         match material.as_bind_group(
             &pipeline.ui_layout.clone(),
@@ -583,10 +583,8 @@ impl<M: UiMaterial> RenderAsset for PreparedUiMaterial<M> {
                 bind_group: prepared.bind_group,
                 key: bind_group_data,
             }),
-            Err(AsBindGroupError::RetryNextUpdate) => {
-                Err(PrepareAssetError::RetryNextUpdate(material))
-            }
-            Err(other) => Err(PrepareAssetError::AsBindGroupError(other)),
+            Err(AsBindGroupError::RetryNextUpdate) => Err(RetryOrError::Retry(material)),
+            Err(other) => Err(RetryOrError::AsBindGroupError(other)),
         }
     }
 }

@@ -4,7 +4,7 @@ use bevy_ecs::prelude::*;
 use bevy_reflect::TypePath;
 use bevy_render::{
     extract_plugin::ExtractPlugin,
-    render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin},
+    render_asset::{RenderAsset, RenderAssetPlugin, RetryOrError},
     RenderApp,
 };
 use criterion::{criterion_group, BenchmarkId, Criterion, Throughput};
@@ -28,7 +28,7 @@ impl RenderAsset for DummyRenderAsset {
         _asset_id: AssetId<Self::SourceAsset>,
         _param: &mut bevy_ecs::system::SystemParamItem<Self::Param>,
         _previous_asset: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
+    ) -> Result<Self, RetryOrError<Self::SourceAsset>> {
         Ok(DummyRenderAsset)
     }
 }

@@ -32,9 +32,7 @@ use bevy_render::render_resource::BindGroupLayoutDescriptor;
 use bevy_render::view::{RenderVisibleEntities, RetainedViewEntity};
 use bevy_render::{
     mesh::RenderMesh,
-    render_asset::{
-        prepare_assets, PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets,
-    },
+    render_asset::{prepare_assets, RenderAsset, RenderAssetPlugin, RenderAssets, RetryOrError},
     render_phase::{
         AddRenderCommand, BinnedRenderPhaseType, DrawFunctionId, DrawFunctions, InputUniformIndex,
         PhaseItem, PhaseItemExtraIndex, RenderCommand, RenderCommandResult, SetItemPipeline,
@@ -1125,7 +1123,7 @@ impl<M: Material2d> RenderAsset for PreparedMaterial2d<M> {
             material_param,
         ): &mut SystemParamItem<Self::Param>,
         _: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
+    ) -> Result<Self, RetryOrError<Self::SourceAsset>> {
         let bind_group_data = material.bind_group_data();
         match material.as_bind_group(
             &pipeline.material2d_layout,
@@ -1164,10 +1162,8 @@ impl<M: Material2d> RenderAsset for PreparedMaterial2d<M> {
                     },
                 })
             }
-            Err(AsBindGroupError::RetryNextUpdate) => {
-                Err(PrepareAssetError::RetryNextUpdate(material))
-            }
-            Err(other) => Err(PrepareAssetError::AsBindGroupError(other)),
+            Err(AsBindGroupError::RetryNextUpdate) => Err(RetryOrError::Retry(material)),
+            Err(other) => Err(RetryOrError::AsBindGroupError(other)),
         }
     }
 }
