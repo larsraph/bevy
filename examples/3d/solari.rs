@@ -215,7 +215,10 @@ fn setup_many_lights(
         .build()
         .with_generated_tangents()
         .unwrap();
-    match plane_mesh.get_attribute_mut_mut(Mesh::ATTRIBUTE_UV_0).unwrap() {
+    match plane_mesh
+        .get_attribute_mut_mut(Mesh::ATTRIBUTE_UV_0)
+        .unwrap()
+    {
         VertexAttributeValues::Float32x2(items) => {
             items.iter_mut().flatten().for_each(|x| *x *= 3.0);
         }
