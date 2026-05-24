@@ -5,7 +5,9 @@ use crate::{
 use bevy_app::{App, Plugin, SubApp};
 use bevy_asset::{Asset, AssetEvent, AssetId, Assets};
 use bevy_ecs::{
-    prelude::{Commands, IntoScheduleConfigs, Local, MessageReader, ResMut, Resource},
+    prelude::{
+        IntoScheduleConfigs, Local, Message, MessageReader, MessageWriter, ResMut, Resource,
+    },
     schedule::{ScheduleConfigs, SystemSet},
     system::{ScheduleSystem, StaticSystemParam, SystemParam, SystemParamItem, SystemState},
     world::{FromWorld, Mut},
@@ -258,26 +260,21 @@ impl<A: RenderAsset> FromWorld for CachedExtractRenderAssetSystemState<A> {
 
 /// Resource inserted during [`RenderStartup`] containing asset IDs that need
 /// re-extraction from the main world after device recovery.
-#[derive(Resource)]
-pub(crate) struct RenderAssetsToReExtract<A: RenderAsset> {
-    ids: Vec<AssetId<A::SourceAsset>>,
-}
+#[derive(Message)]
+pub(crate) struct Reextract<A: RenderAsset>(AssetId<A::SourceAsset>);
 
 /// Drains all asset IDs from [`RenderAssets<A>`] to mark for re-extraction.
 fn collect_render_assets_to_reextract<A: RenderAsset>(
-    mut commands: Commands,
+    mut reextract_writer: MessageWriter<Reextract<A>>,
     mut render_assets: ResMut<RenderAssets<A>>,
 ) {
-    let ids: Vec<_> = render_assets.0.drain().map(|(id, _)| id).collect();
-    if !ids.is_empty() {
-        commands.insert_resource(RenderAssetsToReExtract::<A> { ids });
-    }
+    reextract_writer.write_batch(render_assets.0.drain().map(|(id, _)| Reextract(id)));
 }
 
 /// Extracts all created or modified assets of the corresponding [`RenderAsset::SourceAsset`] type
 /// into the "render world", including any assets invalidated by device recovery.
 pub(crate) fn extract_render_asset<A: RenderAsset>(
-    mut to_reextract: Option<ResMut<RenderAssetsToReExtract<A>>>,
+    mut reextract_reader: MessageReader<Reextract<A>>,
     mut extracted_assets: ResMut<ExtractedAssets<A>>,
     mut main_world: ResMut<MainWorld>,
     mut needs_extracting: Local<HashSet<AssetId<A::SourceAsset>>>,
@@ -288,18 +285,11 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
     extracted_assets.added.clear();
     needs_extracting.clear();
 
-    let reextract_ids = to_reextract
-        .as_mut()
-        .map(|r| core::mem::take(&mut r.ids))
-        .filter(|ids| !ids.is_empty());
+    needs_extracting.extend(reextract_reader.read().map(|r| r.0));
 
     main_world.resource_scope(
         |world, mut cached_state: Mut<CachedExtractRenderAssetSystemState<A>>| {
             let (mut events, mut assets) = cached_state.state.get_mut(world).unwrap();
-
-            if let Some(reextract_ids) = reextract_ids {
-                needs_extracting.extend(reextract_ids);
-            }
 
             for event in events.read() {
                 #[expect(
