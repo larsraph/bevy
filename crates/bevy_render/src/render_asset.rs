@@ -243,7 +243,6 @@ struct CachedExtractRenderAssetSystemState<A: RenderAsset> {
     state: SystemState<(
         MessageReader<'static, 'static, AssetEvent<A::SourceAsset>>,
         ResMut<'static, Assets<A::SourceAsset>>,
-        Option<Res<'static, RenderAssets<A>>>,
     )>,
 }
 
@@ -280,6 +279,7 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
     mut extracted_assets: ResMut<ExtractedAssets<A>>,
     mut main_world: ResMut<MainWorld>,
     mut needs_extracting: Local<HashSet<AssetId<A::SourceAsset>>>,
+    mut render_assets: ResMut<RenderAssets<A>>,
 ) {
     extracted_assets.extracted.clear();
     extracted_assets.removed.clear();
@@ -294,7 +294,7 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
 
     main_world.resource_scope(
         |world, mut cached_state: Mut<CachedExtractRenderAssetSystemState<A>>| {
-            let (mut events, mut assets, maybe_render_assets) = cached_state.state.get_mut(world).unwrap();
+            let (mut events, mut assets) = cached_state.state.get_mut(world).unwrap();
 
             if let Some(reextract_ids) = reextract_ids {
                 needs_extracting.extend(reextract_ids);
@@ -334,7 +334,7 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
                     if asset_usage.contains(RenderAssetUsages::RENDER_WORLD) {
                         if asset_usage == RenderAssetUsages::RENDER_WORLD {
                             if let Some(asset) = assets.get_mut_untracked(id) {
-                                let previous_asset = maybe_render_assets.as_ref().and_then(|render_assets| render_assets.get(id));
+                                let previous_asset = render_assets.get(id);
                                 match A::take_gpu_data(asset, previous_asset) {
                                     Ok(gpu_data_asset) => {
                                         extracted_assets.extracted.push((id, gpu_data_asset));
