@@ -127,7 +127,6 @@ impl<A: RenderAsset, AFTER: RenderAssetDependency + 'static> Plugin
                 .init_resource::<ExtractedAssets<A>>()
                 .init_resource::<RenderAssets<A>>()
                 .allow_ambiguous_resource::<RenderAssets<A>>()
-                .init_resource::<PrepareNextFrameAssets<A>>()
                 .add_systems(RenderStartup, collect_render_assets_to_reextract::<A>)
                 .add_systems(
                     ExtractSchedule,
@@ -336,27 +335,12 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
     );
 }
 
-// TODO: consider storing inside system?
-/// All assets that should be prepared next frame.
-#[derive(Resource)]
-pub struct PrepareNextFrameAssets<A: RenderAsset> {
-    assets: Vec<(AssetId<A::SourceAsset>, A::Extracted)>,
-}
-
-impl<A: RenderAsset> Default for PrepareNextFrameAssets<A> {
-    fn default() -> Self {
-        Self {
-            assets: Default::default(),
-        }
-    }
-}
-
 /// This system prepares all assets of the corresponding [`RenderAsset::SourceAsset`] type
 /// which where extracted this frame for the GPU.
 pub fn prepare_assets<A: RenderAsset>(
     mut extracted_assets: ResMut<ExtractedAssets<A>>,
     mut render_assets: ResMut<RenderAssets<A>>,
-    mut prepare_next_frame: ResMut<PrepareNextFrameAssets<A>>,
+    mut prepare_next_frame: Local<Vec<(AssetId<A::SourceAsset>, A::Extracted)>>,
     param: StaticSystemParam<<A as RenderAsset>::Param>,
     bpf: Res<RenderAssetBytesPerFrameLimiter>,
 ) {
