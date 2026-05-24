@@ -49,7 +49,6 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// Extracts the asset from the "main world" into the "render world".
     fn extract(
         source_asset: &Self::SourceAsset,
-        previous_asset: Option<&Self>,
     ) -> Option<Result<Self::Extracted, Self::ExtractError>>;
 
     /// Size of the data the asset will upload to the gpu. Specifying a return value
@@ -268,7 +267,6 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
     mut extracted_assets: ResMut<ExtractedAssets<A>>,
     mut main_world: ResMut<MainWorld>,
     mut needs_extracting: Local<HashSet<AssetId<A::SourceAsset>>>,
-    render_assets: Res<RenderAssets<A>>,
 ) {
     extracted_assets.extracted.clear();
     extracted_assets.removed.clear();
@@ -319,8 +317,7 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
 
             for id in needs_extracting.drain() {
                 if let Some(source_asset) = assets.get_mut_untracked(id) {
-                    let previous_asset = render_assets.get(id);
-                    if let Some(extracted_asset) = A::extract(source_asset, previous_asset) {
+                    if let Some(extracted_asset) = A::extract(source_asset) {
                         match extracted_asset {
                             Ok(extracted_asset) => {
                                 extracted_assets.extracted.push((id, extracted_asset));
