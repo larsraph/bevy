@@ -328,6 +328,32 @@ impl Mesh {
             data: self.data?,
         })
     }
+
+    fn take_data_mut_metadata(&mut self) -> Option<UntakenMesh<&mut MeshMetadata, MeshData>> {
+        let metadata = &mut self.metadata;
+        let data = self.data.take()?;
+        Some(UntakenMesh { metadata, data })
+    }
+
+    pub fn extract_clone(&mut self) -> Option<UMesh> {
+        let mut umesh = self.untaken_mut()?;
+        umesh.update_final_aabb();
+        Some(UMesh {
+            metadata: umesh.metadata.clone(),
+            data: umesh.data.clone(),
+        })
+    }
+
+    pub fn extract_take(&mut self) -> Option<UMesh> {
+        let metadata = &mut self.metadata;
+        let data = self.data.take()?;
+        let mut umesh = UntakenMesh { metadata, data };
+        umesh.update_final_aabb();
+        Some(UMesh {
+            metadata: umesh.metadata.to_owned(),
+            data: umesh.data.to_owned(),
+        })
+    }
 }
 
 impl<M, D> UntakenMesh<M, D>

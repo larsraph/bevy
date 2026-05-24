@@ -138,20 +138,17 @@ impl RenderAsset for RenderMesh {
         SResMut<RenderMorphTargetAllocator>,
     );
 
-    type Extracted = Self::SourceAsset;
+    type Extracted = UMesh;
 
     fn extract(
         source_asset: &mut Self::SourceAsset,
         _previous_gpu_asset: Option<&Self>,
     ) -> Option<Result<Self::Extracted, AlreadyTaken>> {
         source_asset
+            .metadata()
             .asset_usage
-            .extract(
-                source_asset,
-                Self::SourceAsset::take_gpu_data,
-                |source_asset| source_asset.clone().take_gpu_data(), // This could be done more idiomatically.
-            )
-            .map(|result| result.map_err(|_| AlreadyTaken))
+            .extract(source_asset, Mesh::extract_take, Mesh::extract_clone)
+            .map(|result| result.ok_or(AlreadyTaken))
     }
 
     fn byte_len(mesh: &Self::Extracted) -> Option<usize> {
