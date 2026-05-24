@@ -320,16 +320,14 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
             }
 
             for id in needs_extracting.drain() {
-                if let Some(source_asset) = assets.get_mut_untracked(id) {
-                    if let Some(extracted_asset) = A::extract(source_asset) {
-                        match extracted_asset {
-                            Ok(extracted_asset) => {
-                                extracted_assets.extracted.push((id, extracted_asset));
-                                extracted_assets.added.insert(id);
-                            },
-                            Err(extract_error) => {
-                                error!("{extract_error}");
-                            }
+                if let Some(source_asset) = assets.get_mut_untracked(id) && let Some(extracted_asset) = A::extract(source_asset){
+                    match extracted_asset {
+                        Ok(extracted_asset) => {
+                            extracted_assets.extracted.push((id, extracted_asset));
+                            extracted_assets.added.insert(id);
+                        },
+                        Err(extract_error) => {
+                            error!("{extract_error}");
                         }
                     }
                 }
