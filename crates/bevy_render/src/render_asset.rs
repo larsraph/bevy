@@ -1,6 +1,5 @@
 use crate::{
-    render_resource::AsBindGroupError, Extract, ExtractSchedule, MainWorld, Render, RenderApp,
-    RenderStartup, RenderSystems, Res,
+    Extract, ExtractSchedule, MainWorld, Render, RenderApp, RenderStartup, RenderSystems, Res,
 };
 use bevy_app::{App, Plugin, SubApp};
 use bevy_asset::{Asset, AssetEvent, AssetId, Assets};
