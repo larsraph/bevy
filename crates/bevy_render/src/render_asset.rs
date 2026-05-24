@@ -266,10 +266,8 @@ pub(crate) struct RenderAssetsToReExtract<A: RenderAsset> {
 fn collect_render_assets_to_reextract<A: RenderAsset>(
     mut commands: Commands,
     mut render_assets: ResMut<RenderAssets<A>>,
-    mut prepare_next_frame: ResMut<PrepareNextFrameAssets<A>>,
 ) {
     let ids: Vec<_> = render_assets.0.drain().map(|(id, _)| id).collect();
-    prepare_next_frame.assets.clear();
     if !ids.is_empty() {
         commands.insert_resource(RenderAssetsToReExtract::<A> { ids });
     }
