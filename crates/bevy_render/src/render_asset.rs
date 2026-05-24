@@ -274,7 +274,7 @@ pub(crate) fn extract_render_asset<A: RenderAsset>(
     mut extracted_assets: ResMut<ExtractedAssets<A>>,
     mut main_world: ResMut<MainWorld>,
     mut needs_extracting: Local<HashSet<AssetId<A::SourceAsset>>>,
-    mut render_assets: ResMut<RenderAssets<A>>,
+    render_assets: Res<RenderAssets<A>>,
 ) {
     extracted_assets.extracted.clear();
     extracted_assets.removed.clear();
