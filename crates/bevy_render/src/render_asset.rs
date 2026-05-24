@@ -360,7 +360,7 @@ pub fn prepare_assets<A: RenderAsset>(
             // this way we always write at least one (sized) asset per frame.
             // in future we could also consider partial asset uploads.
             if bpf.exhausted() {
-                prepare_next_frame.assets.push((id, extracted_asset));
+                prepare_next_frame.push((id, extracted_asset));
                 continue;
             }
             size
@@ -376,7 +376,7 @@ pub fn prepare_assets<A: RenderAsset>(
                 wrote_asset_count += 1;
             }
             Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
-                prepare_next_frame.assets.push((id, extracted_asset));
+                prepare_next_frame.push((id, extracted_asset));
             }
             Err(PrepareAssetError::AsBindGroupError(e)) => {
                 error!(
@@ -426,11 +426,11 @@ pub fn prepare_assets<A: RenderAsset>(
         }
     }
 
-    if bpf.exhausted() && !prepare_next_frame.assets.is_empty() {
+    if bpf.exhausted() && !prepare_next_frame.is_empty() {
         debug!(
             "{} write budget exhausted with {} assets remaining (wrote {})",
             core::any::type_name::<A>(),
-            prepare_next_frame.assets.len(),
+            prepare_next_frame.len(),
             wrote_asset_count
         );
     }
