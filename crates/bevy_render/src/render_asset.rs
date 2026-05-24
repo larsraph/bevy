@@ -17,18 +17,15 @@ use bevy_platform::collections::{HashMap, HashSet};
 use core::marker::PhantomData;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use std::error::Error;
-use thiserror::Error;
 
 /// The system set during which we extract modified assets to the render world.
 #[derive(SystemSet, Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct AssetExtractionSystems;
 
-#[derive(Debug, Error)]
-pub enum PrepareAssetError<E> {
-    #[error("Failed to prepare asset")]
-    RetryNextUpdate(E),
-    #[error("Failed to build bind group: {0}")]
-    AsBindGroupError(AsBindGroupError),
+#[derive(Debug)]
+pub enum PrepareAssetError<R, E> {
+    RetryNextUpdate(R),
+    Error(E),
 }
 
 /// Describes how an asset gets extracted and prepared for rendering.
@@ -68,6 +65,8 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// For convenience use the [`lifetimeless`](bevy_ecs::system::lifetimeless) [`SystemParam`].
     type Param: SystemParam;
 
+    type PrepareError: Error;
+
     /// Prepares the [`RenderAsset::Extracted`] for the GPU by transforming it into a [`RenderAsset`].
     ///
     /// ECS data may be accessed via `param`.
@@ -76,7 +75,7 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
         asset_id: AssetId<Self::SourceAsset>,
         param: &mut SystemParamItem<Self::Param>,
         previous_asset: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::Extracted>>;
+    ) -> Result<Self, PrepareAssetError<Self::Extracted, Self::PrepareError>>;
 
     /// Called whenever the [`RenderAsset`] has been removed or replaced.
     ///
@@ -384,11 +383,8 @@ pub fn prepare_assets<A: RenderAsset>(
             Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
                 prepare_next_frame.push((id, extracted_asset));
             }
-            Err(PrepareAssetError::AsBindGroupError(e)) => {
-                error!(
-                    "{} Bind group construction failed: {e}",
-                    core::any::type_name::<A>()
-                );
+            Err(PrepareAssetError::Error(e)) => {
+                error!("{} prepare asset error: {e}", core::any::type_name::<A>());
             }
         }
     }
