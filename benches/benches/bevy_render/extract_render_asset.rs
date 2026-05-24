@@ -23,7 +23,7 @@ impl RenderAsset for DummyRenderAsset {
         RenderAssetUsages::RENDER_WORLD
     }
 
-    fn prepare_asset(
+    fn prepare_assets(
         _source_asset: Self::SourceAsset,
         _asset_id: AssetId<Self::SourceAsset>,
         _param: &mut bevy_ecs::system::SystemParamItem<Self::Param>,

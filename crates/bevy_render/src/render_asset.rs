@@ -66,15 +66,21 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
 
     type PrepareError: Error;
 
-    /// Prepares the [`RenderAsset::Extracted`] for the GPU by transforming it into a [`RenderAsset`].
+    /// Prepares the [`RenderAsset::Extracted`]s for the GPU by transforming them into [`RenderAsset`]s.
     ///
     /// ECS data may be accessed via `param`.
-    fn prepare_asset(
-        extracted: Self::Extracted,
-        asset_id: AssetId<Self::SourceAsset>,
+    ///
+    /// This function operates on Iterators to allow batching resource acquisition. For the default
+    /// case simply map the iterator.
+    fn prepare_assets(
+        extracted: impl Iterator<Item = (AssetId<Self::SourceAsset>, Self::Extracted, Option<&Self>)>,
         param: &mut SystemParamItem<Self::Param>,
-        previous_asset: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::Extracted, Self::PrepareError>>;
+    ) -> impl Iterator<
+        Item = (
+            AssetId<Self::SourceAsset>,
+            Result<Self, PrepareAssetError<Self::Extracted, Self::PrepareError>>,
+        ),
+    >;
 
     /// Called whenever the [`RenderAsset`] has been removed or replaced.
     ///
@@ -343,32 +349,35 @@ pub fn prepare_assets<A: RenderAsset>(
     } = &mut *extracted_assets;
     let queued_assets = core::mem::take(&mut *prepare_next_frame);
 
-    for (id, extracted_asset) in queued_assets
+    let extracted = queued_assets
         .into_iter()
         .filter(|(id, _)| !removed.contains(id) && !added.contains(id))
         .chain(extracted.drain(..))
-    {
-        let write_bytes = if let Some(size) = A::byte_len(&extracted_asset) {
-            // we could check if available bytes > byte_len here, but we want to make some
-            // forward progress even if the asset is larger than the max bytes per frame.
-            // this way we always write at least one (sized) asset per frame.
-            // in future we could also consider partial asset uploads.
-            if bpf.exhausted() {
-                prepare_next_frame.push((id, extracted_asset));
-                continue;
-            }
-            size
-        } else {
-            0
-        };
+        .filter_map(|(id, extracted_asset)| {
+            let write_bytes = if let Some(size) = A::byte_len(&extracted_asset) {
+                // we could check if available bytes > byte_len here, but we want to make some
+                // forward progress even if the asset is larger than the max bytes per frame.
+                // this way we always write at least one (sized) asset per frame.
+                // in future we could also consider partial asset uploads.
+                if bpf.exhausted() {
+                    prepare_next_frame.push((id, extracted_asset));
+                    return None;
+                }
+                size
+            } else {
+                0
+            };
+            bpf.write_bytes(write_bytes);
+            let previous = render_assets.get(id);
+            Some((id, extracted_asset, previous))
+        });
 
-        let previous_asset = render_assets.get(id);
-        match A::prepare_asset(extracted_asset, id, &mut param, previous_asset) {
+    for (id, prepared_asset_result) in A::prepare_assets(extracted, &mut param) {
+        match prepared_asset_result {
             Ok(prepared_asset) => {
                 if let Some(previous_asset) = render_assets.insert(id, prepared_asset) {
                     previous_asset.unload_asset(id, &mut param);
                 }
-                bpf.write_bytes(write_bytes);
                 wrote_asset_count += 1;
             }
             Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {

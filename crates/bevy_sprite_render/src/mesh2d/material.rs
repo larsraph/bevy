@@ -1111,7 +1111,7 @@ impl<M: Material2d> RenderAsset for PreparedMaterial2d<M> {
         M::Param,
     );
 
-    fn prepare_asset(
+    fn prepare_assets(
         material: Self::SourceAsset,
         material_id: AssetId<Self::SourceAsset>,
         (

@@ -60,7 +60,7 @@ impl RenderAsset for GpuImage {
     }
 
     /// Converts the extracted image into a [`GpuImage`].
-    fn prepare_asset(
+    fn prepare_assets(
         image: Self::SourceAsset,
         _: AssetId<Self::SourceAsset>,
         (render_device, render_queue, default_sampler): &mut SystemParamItem<Self::Param>,

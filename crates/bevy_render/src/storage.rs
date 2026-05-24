@@ -156,7 +156,7 @@ impl RenderAsset for GpuShaderBuffer {
             .ok_or(AssetExtractionError::AlreadyExtracted)
     }
 
-    fn prepare_asset(
+    fn prepare_assets(
         source_asset: Self::SourceAsset,
         _: AssetId<Self::SourceAsset>,
         (render_device, render_queue): &mut SystemParamItem<Self::Param>,
