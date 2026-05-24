@@ -17,25 +17,16 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use std::error::Error;
 use thiserror::Error;
 
+/// The system set during which we extract modified assets to the render world.
+#[derive(SystemSet, Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct AssetExtractionSystems;
+
 #[derive(Debug, Error)]
-pub enum PrepareAssetError<E: Send + Sync + 'static> {
+pub enum PrepareAssetError<E> {
     #[error("Failed to prepare asset")]
     RetryNextUpdate(E),
     #[error("Failed to build bind group: {0}")]
     AsBindGroupError(AsBindGroupError),
-}
-
-/// The system set during which we extract modified assets to the render world.
-#[derive(SystemSet, Clone, PartialEq, Eq, Debug, Hash)]
-pub struct AssetExtractionSystems;
-
-/// Error returned when an asset due for extraction has already been extracted
-#[derive(Debug, Error)]
-pub enum AssetExtractionError {
-    #[error("The asset has already been extracted")]
-    AlreadyExtracted,
-    #[error("The asset type does not support extraction. To clone the asset to the renderworld, use `RenderAssetUsages::default()`")]
-    NoExtractionImplementation,
 }
 
 /// Describes how an asset gets extracted and prepared for rendering.
@@ -58,12 +49,11 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// Extracts the asset from the "main world" into the "render world".
     fn extract(
         source_asset: &Self::SourceAsset,
-        previous_gpu_asset: Option<&Self>,
+        previous_asset: Option<&Self>,
     ) -> Option<Result<Self::Extracted, Self::ExtractError>>;
 
     /// Size of the data the asset will upload to the gpu. Specifying a return value
     /// will allow the asset to be throttled via [`RenderAssetBytesPerFrame`].
-    #[inline]
     #[expect(
         unused_variables,
         reason = "The parameters here are intentionally unused by the default implementation; however, putting underscores here will result in the underscores being copied by rust-analyzer's tab completion."
@@ -90,12 +80,16 @@ pub trait RenderAsset: Send + Sync + 'static + Sized {
     /// Called whenever the [`RenderAsset::SourceAsset`] has been removed.
     ///
     /// You can implement this method if you need to access ECS data (via
-    /// `_param`) in order to perform cleanup tasks when the asset is removed.
+    /// `param`) in order to perform cleanup tasks when the asset is removed.
     ///
     /// The default implementation does nothing.
+    #[expect(
+        unused_variables,
+        reason = "The parameters here are intentionally unused by the default implementation; however, putting underscores here will result in the underscores being copied by rust-analyzer's tab completion."
+    )]
     fn unload_asset(
-        _source_asset: AssetId<Self::SourceAsset>,
-        _param: &mut SystemParamItem<Self::Param>,
+        asset_id: AssetId<Self::SourceAsset>,
+        param: &mut SystemParamItem<Self::Param>,
     ) {
     }
 }
@@ -148,7 +142,7 @@ impl<A: RenderAsset, AFTER: RenderAssetDependency + 'static> Plugin
     }
 }
 
-// helper to allow specifying dependencies between render assets
+// Trait to allow specifying dependencies between render assets
 pub trait RenderAssetDependency {
     fn register_system(render_app: &mut SubApp, system: ScheduleConfigs<ScheduleSystem>);
 }
