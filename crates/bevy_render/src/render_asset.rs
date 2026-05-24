@@ -190,20 +190,6 @@ impl<A: RenderAsset> Default for ExtractedAssets<A> {
     }
 }
 
-impl<A: RenderAsset> ExtractedAssets<A> {
-    fn split(
-        &mut self,
-    ) -> (
-        impl Fn(&AssetId<A::SourceAsset>) -> bool,
-        &mut Vec<(AssetId<A::SourceAsset>, A::Extracted)>,
-    ) {
-        (
-            |id| self.added.contains(id) || self.modified.contains(id),
-            &mut self.extracted,
-        )
-    }
-}
-
 /// Stores all GPU representations ([`RenderAsset`])
 /// of [`RenderAsset::SourceAsset`] as long as they exist.
 #[derive(Resource)]
@@ -350,11 +336,17 @@ pub fn prepare_assets<A: RenderAsset>(
 
     let mut param = param.into_inner();
 
-    let (changed, extracted) = extracted_assets.split();
+    let ExtractedAssets {
+        extracted,
+        removed,
+        added,
+        ..
+    } = &mut *extracted_assets;
     let queued_assets = core::mem::take(&mut *prepare_next_frame);
+
     for (id, extracted_asset) in queued_assets
         .into_iter()
-        .filter(|(id, _)| !changed(id))
+        .filter(|(id, _)| !removed.contains(id) && !added.contains(id))
         .chain(extracted.drain(..))
     {
         let write_bytes = if let Some(size) = A::byte_len(&extracted_asset) {
@@ -388,10 +380,8 @@ pub fn prepare_assets<A: RenderAsset>(
             }
         }
     }
-    drop(changed);
-    drop(extracted);
 
-    for id in extracted_assets.removed.drain() {
+    for &id in extracted_assets.removed.iter() {
         if let Some(asset) = render_assets.remove(id) {
             asset.unload_asset(id, &mut param);
         }
