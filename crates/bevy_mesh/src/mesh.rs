@@ -30,10 +30,6 @@ use wgpu_types::{VertexAttribute, VertexFormat, VertexStepMode, WriteOnly};
 pub const INDEX_BUFFER_ASSET_INDEX: u64 = 0;
 pub const VERTEX_ATTRIBUTE_BUFFER_ID: u64 = 10;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
-#[error("Mesh has been extracted to RenderWorld. To access vertex attributes, the mesh `asset_usage` must include `MAIN_WORLD`")]
-pub struct MeshExtractedError;
-
 #[derive(Debug, Clone, Reflect, PartialEq)]
 #[reflect(Clone)]
 pub struct MeshMetadata {
