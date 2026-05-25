@@ -162,7 +162,7 @@ impl RenderAsset for RenderMesh {
     }
 
     /// Converts the extracted mesh into a [`RenderMesh`].
-    fn prepare_assets(
+    fn prepare_asset(
         mesh: Self::SourceAsset,
         _mesh_id: AssetId<Self::SourceAsset>,
         (

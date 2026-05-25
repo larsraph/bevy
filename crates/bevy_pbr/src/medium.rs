@@ -66,7 +66,7 @@ impl RenderAsset for GpuScatteringMedium {
 
     type Param = (Res<'static, RenderDevice>, Res<'static, RenderQueue>);
 
-    fn prepare_assets(
+    fn prepare_asset(
         source_asset: Self::SourceAsset,
         _asset_id: AssetId<Self::SourceAsset>,
         (render_device, render_queue): &mut SystemParamItem<Self::Param>,

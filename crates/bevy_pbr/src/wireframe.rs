@@ -947,7 +947,7 @@ impl RenderAsset for RenderWireframeMaterial {
     type SourceAsset = WireframeMaterial;
     type Param = ();
 
-    fn prepare_assets(
+    fn prepare_asset(
         source_asset: Self::SourceAsset,
         _asset_id: AssetId<Self::SourceAsset>,
         _param: &mut SystemParamItem<Self::Param>,

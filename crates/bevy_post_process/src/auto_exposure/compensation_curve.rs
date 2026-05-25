@@ -199,7 +199,7 @@ impl RenderAsset for GpuAutoExposureCompensationCurve {
         Ok(source.clone())
     }
 
-    fn prepare_assets(
+    fn prepare_asset(
         source: Self::SourceAsset,
         _: AssetId<Self::SourceAsset>,
         (render_device, render_queue): &mut SystemParamItem<Self::Param>,

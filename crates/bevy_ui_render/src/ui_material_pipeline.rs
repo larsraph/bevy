@@ -563,7 +563,7 @@ impl<M: UiMaterial> RenderAsset for PreparedUiMaterial<M> {
         M::Param,
     );
 
-    fn prepare_assets(
+    fn prepare_asset(
         material: Self::SourceAsset,
         _: AssetId<Self::SourceAsset>,
         (render_device, pipeline_cache, pipeline, material_param): &mut SystemParamItem<

@@ -255,7 +255,7 @@ impl RenderAsset for GpuLineGizmo {
     type SourceAsset = GizmoAsset;
     type Param = SRes<RenderDevice>;
 
-    fn prepare_assets(
+    fn prepare_asset(
         gizmo: Self::SourceAsset,
         _: AssetId<Self::SourceAsset>,
         render_device: &mut SystemParamItem<Self::Param>,
