@@ -969,6 +969,16 @@ impl Allocator {
             }
         }
     }
+
+    pub(super) fn flush(&mut self) {
+        if !self.local_free.is_empty() {
+            // SAFETY: We have `&mut self`.
+            unsafe {
+                self.shared.free.free(&self.local_free);
+            }
+            self.local_free.clear();
+        }
+    }
 }
 
 impl Drop for Allocator {
