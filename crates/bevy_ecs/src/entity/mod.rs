@@ -741,6 +741,10 @@ impl EntityAllocator {
         self.inner.free_many(freed);
     }
 
+    pub fn flush(&mut self) {
+        self.inner.flush();
+    }
+
     /// Allocates some [`Entity`].
     /// The result could have come from a [`free`](Self::free) or be a brand new [`EntityIndex`].
     ///
